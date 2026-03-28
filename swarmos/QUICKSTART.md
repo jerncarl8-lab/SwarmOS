@@ -1,215 +1,162 @@
-# SwarmOS Quick Start Guide
+# SwarmOS - Quick Reference
 
-## ✅ Setup Complete!
+## ✅ Installation Complete
 
-Your Next.js application has been successfully created with all integrations installed.
+✓ Next.js 14.0.0  
+✓ React 18.2.0  
+✓ Supabase ^2.39.0  
+✓ OpenAI ^4.0.0  
+✓ Stripe ^14.0.0  
+✓ Resend ^2.0.0  
+✓ Twilio ^4.0.0  
 
-## 🎯 Current Status
+## 🚀 Server Status
 
-**Application Location:** `/app/swarmos/`
+**Running:** http://localhost:3001  
+**Health Check:** http://localhost:3001/api/health
 
-**Running:** Yes ✓
-- **URL:** http://localhost:3001
-- **API Test:** http://localhost:3001/api/example
+## 📂 File Locations
 
-**Installed Integrations:**
-- ✅ Supabase (Database & Auth)
-- ✅ OpenAI (AI & LLMs)
-- ✅ Stripe (Payments)
-- ✅ Resend (Email)
-- ✅ Twilio (SMS & Voice)
-
-## 🔑 Next Steps
-
-### 1. Configure API Keys
-
-Edit `/app/swarmos/.env.local` and add your credentials:
-
-```bash
-# Supabase - Get from: https://supabase.com/dashboard
-NEXT_PUBLIC_SUPABASE_URL=https://your-project.supabase.co
-NEXT_PUBLIC_SUPABASE_ANON_KEY=your-anon-key
-SUPABASE_SERVICE_ROLE_KEY=your-service-role-key
-
-# OpenAI - Get from: https://platform.openai.com/api-keys
-OPENAI_API_KEY=sk-...
-
-# Stripe - Get from: https://dashboard.stripe.com/apikeys
-NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY=pk_test_...
-STRIPE_SECRET_KEY=sk_test_...
-STRIPE_WEBHOOK_SECRET=whsec_...
-
-# Resend - Get from: https://resend.com/api-keys
-RESEND_API_KEY=re_...
-
-# Twilio - Get from: https://console.twilio.com
-TWILIO_ACCOUNT_SID=AC...
-TWILIO_AUTH_TOKEN=your-auth-token
-TWILIO_PHONE_NUMBER=+1234567890
+```
+/app/swarmos/
+├── app/
+│   ├── api/
+│   │   ├── health/route.ts    ← Health check
+│   │   ├── chat/route.ts      ← OpenAI endpoint
+│   │   ├── email/route.ts     ← Resend endpoint
+│   │   ├── sms/route.ts       ← Twilio endpoint
+│   │   └── payment/route.ts   ← Stripe endpoint
+│   ├── page.tsx               ← Home page
+│   └── layout.tsx
+├── lib/
+│   ├── supabase.ts            ← DB client
+│   ├── openai.ts              ← AI client
+│   ├── stripe.ts              ← Payments
+│   ├── resend.ts              ← Email
+│   └── twilio.ts              ← SMS/Voice
+└── .env.local                 ← Add your API keys here!
 ```
 
-### 2. Start Development
+## 🔑 Environment Variables Needed
+
+Edit `/app/swarmos/.env.local`:
+
+```bash
+NEXT_PUBLIC_SUPABASE_URL=
+NEXT_PUBLIC_SUPABASE_ANON_KEY=
+SUPABASE_SERVICE_ROLE_KEY=
+OPENAI_API_KEY=
+NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY=
+STRIPE_SECRET_KEY=
+STRIPE_WEBHOOK_SECRET=
+RESEND_API_KEY=
+TWILIO_ACCOUNT_SID=
+TWILIO_AUTH_TOKEN=
+TWILIO_PHONE_NUMBER=
+```
+
+## 🧪 Quick Tests
+
+```bash
+# Health check
+curl http://localhost:3001/api/health
+
+# Chat with AI (requires OPENAI_API_KEY)
+curl -X POST http://localhost:3001/api/chat \
+  -H "Content-Type: application/json" \
+  -d '{"message": "Hello!"}'
+
+# Send email (requires RESEND_API_KEY)
+curl -X POST http://localhost:3001/api/email \
+  -H "Content-Type: application/json" \
+  -d '{"to":"test@example.com","subject":"Test","html":"<p>Test</p>"}'
+```
+
+## 💡 Common Commands
 
 ```bash
 cd /app/swarmos
-yarn dev
-```
 
-Access at: **http://localhost:3001**
-
-### 3. Test the API
-
-```bash
-curl http://localhost:3001/api/example
-```
-
-Expected response:
-```json
-{
-  "message": "SwarmOS API is running!",
-  "integrations": {
-    "supabase": "Ready",
-    "openai": "Ready",
-    "stripe": "Ready",
-    "resend": "Ready",
-    "twilio": "Ready"
-  }
-}
-```
-
-## 📁 Key Files
-
-### Integration Libraries
-- `/app/swarmos/src/lib/supabase.ts` - Database client
-- `/app/swarmos/src/lib/openai.ts` - AI client with helper functions
-- `/app/swarmos/src/lib/stripe.ts` - Payment processing
-- `/app/swarmos/src/lib/resend.ts` - Email service
-- `/app/swarmos/src/lib/twilio.ts` - SMS & Voice
-
-### API Routes
-- `/app/swarmos/src/app/api/example/route.ts` - Example API endpoint
-
-### Frontend
-- `/app/swarmos/src/app/page.tsx` - Home page
-- `/app/swarmos/src/app/layout.tsx` - Root layout
-
-## 🚀 Usage Examples
-
-### Create an API Route with OpenAI
-
-```typescript
-// src/app/api/chat/route.ts
-import { NextResponse } from 'next/server';
-import { getChatCompletion } from '@/lib/openai';
-
-export async function POST(request: Request) {
-  const { message } = await request.json();
-  
-  const response = await getChatCompletion([
-    { role: 'user', content: message }
-  ]);
-  
-  return NextResponse.json({ response });
-}
-```
-
-### Send Email with Resend
-
-```typescript
-import { sendEmail } from '@/lib/resend';
-
-await sendEmail({
-  to: 'user@example.com',
-  subject: 'Welcome to SwarmOS',
-  html: '<h1>Welcome!</h1><p>Thanks for joining.</p>',
-});
-```
-
-### Query Supabase
-
-```typescript
-import { supabase } from '@/lib/supabase';
-
-const { data, error } = await supabase
-  .from('users')
-  .select('*')
-  .eq('active', true);
-```
-
-### Process Payment with Stripe
-
-```typescript
-import { createCheckoutSession } from '@/lib/stripe';
-
-const session = await createCheckoutSession({
-  priceId: 'price_1234',
-  successUrl: `${process.env.NEXT_PUBLIC_URL}/success`,
-  cancelUrl: `${process.env.NEXT_PUBLIC_URL}/cancel`,
-});
-
-// Redirect to session.url
-```
-
-### Send SMS with Twilio
-
-```typescript
-import { sendSMS } from '@/lib/twilio';
-
-await sendSMS('+1234567890', 'Your verification code is: 123456');
-```
-
-## 📊 Project Structure
-
-```
-swarmos/
-├── src/
-│   ├── app/
-│   │   ├── api/              # API routes
-│   │   │   └── example/
-│   │   │       └── route.ts
-│   │   ├── page.tsx          # Home page
-│   │   ├── layout.tsx        # Root layout
-│   │   └── globals.css
-│   └── lib/                  # Integration clients
-│       ├── supabase.ts
-│       ├── openai.ts
-│       ├── stripe.ts
-│       ├── resend.ts
-│       └── twilio.ts
-├── public/                   # Static files
-├── .env.local               # Environment variables
-├── package.json
-└── tsconfig.json
-```
-
-## 🛠️ Common Commands
-
-```bash
-# Install new dependency
-yarn add package-name
-
-# Development server
+# Start dev server
 yarn dev
 
-# Build for production
+# Build production
 yarn build
-
-# Start production server
-yarn start
 
 # Run linter
 yarn lint
+
+# Install new package
+yarn add package-name
 ```
 
-## 📚 Documentation Links
+## 📖 Integration Guides
 
-- [Next.js Docs](https://nextjs.org/docs)
-- [Supabase Docs](https://supabase.com/docs)
-- [OpenAI API](https://platform.openai.com/docs)
-- [Stripe Docs](https://stripe.com/docs)
-- [Resend Docs](https://resend.com/docs)
-- [Twilio Docs](https://www.twilio.com/docs)
+### Supabase Setup
+1. Go to https://supabase.com/dashboard
+2. Create a project
+3. Copy URL and keys from Settings > API
+4. Create tables in Table Editor
 
-## 🎉 You're Ready to Build!
+### OpenAI Setup
+1. Go to https://platform.openai.com/api-keys
+2. Create a new API key
+3. Add credits to your account
 
-All integrations are set up and ready to use. Just add your API keys and start building your SwarmOS application!
+### Stripe Setup
+1. Go to https://dashboard.stripe.com/apikeys
+2. Get test keys (pk_test_... and sk_test_...)
+3. Create products and prices
+4. Set up webhooks if needed
+
+### Resend Setup
+1. Go to https://resend.com/api-keys
+2. Create an API key
+3. Verify your domain for production use
+
+### Twilio Setup
+1. Go to https://console.twilio.com
+2. Get your Account SID and Auth Token
+3. Purchase a phone number
+4. Set up messaging service if needed
+
+## 🎯 Next Steps
+
+1. ✅ Add API keys to `.env.local`
+2. ✅ Restart dev server: `yarn dev`
+3. ✅ Test `/api/health` endpoint
+4. ✅ Build your features!
+
+## 🆘 Troubleshooting
+
+**Port already in use:**
+```bash
+# Kill existing process
+pkill -f "next dev"
+yarn dev
+```
+
+**TypeScript errors:**
+```bash
+# Rebuild types
+rm -rf .next
+yarn dev
+```
+
+**Environment variables not loading:**
+- Restart dev server after changing `.env.local`
+- Check variable names match exactly
+- Use `NEXT_PUBLIC_` prefix for client-side vars
+
+## 📚 Documentation
+
+- Next.js: https://nextjs.org/docs
+- Supabase: https://supabase.com/docs
+- OpenAI: https://platform.openai.com/docs
+- Stripe: https://stripe.com/docs
+- Resend: https://resend.com/docs
+- Twilio: https://twilio.com/docs
+
+---
+
+**Ready to build!** 🚀
