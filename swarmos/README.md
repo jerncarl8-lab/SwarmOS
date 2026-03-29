@@ -37,15 +37,14 @@ yarn install
 |---------|---------------------|----------|
 | Supabase | `NEXT_PUBLIC_SUPABASE_URL` | https://supabase.com/dashboard |
 | Supabase | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | https://supabase.com/dashboard |
-| Supabase | `SUPABASE_SERVICE_ROLE_KEY` | https://supabase.com/dashboard |
 | OpenAI | `OPENAI_API_KEY` | https://platform.openai.com/api-keys |
-| Stripe | `NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY` | https://dashboard.stripe.com/apikeys |
 | Stripe | `STRIPE_SECRET_KEY` | https://dashboard.stripe.com/apikeys |
-| Stripe | `STRIPE_WEBHOOK_SECRET` | https://dashboard.stripe.com/webhooks |
+| Stripe | `STRIPE_PRICE_ID` | https://dashboard.stripe.com/products |
 | Resend | `RESEND_API_KEY` | https://resend.com/api-keys |
-| Twilio | `TWILIO_ACCOUNT_SID` | https://console.twilio.com |
-| Twilio | `TWILIO_AUTH_TOKEN` | https://console.twilio.com |
-| Twilio | `TWILIO_PHONE_NUMBER` | https://console.twilio.com |
+| Twilio | `TWILIO_SID` | https://console.twilio.com |
+| Twilio | `TWILIO_AUTH` | https://console.twilio.com |
+| Twilio | `TWILIO_NUMBER` | https://console.twilio.com |
+| App | `APP_URL` | Your app URL (e.g., http://localhost:3000) |
 
 ## 🏃 Running the App
 

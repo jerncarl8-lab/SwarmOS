@@ -1,17 +1,20 @@
 import Stripe from 'stripe'
 
-export const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
+export const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || '', {
   apiVersion: '2023-10-16',
 })
 
+// Get the default price ID from environment
+export const STRIPE_PRICE_ID = process.env.STRIPE_PRICE_ID || ''
+
 // Helper to create a checkout session
 export async function createCheckoutSession({
-  priceId,
+  priceId = STRIPE_PRICE_ID,
   successUrl,
   cancelUrl,
   customerEmail,
 }: {
-  priceId: string
+  priceId?: string
   successUrl: string
   cancelUrl: string
   customerEmail?: string
@@ -33,10 +36,10 @@ export async function createCheckoutSession({
 // Helper to create a subscription
 export async function createSubscription({
   customerId,
-  priceId,
+  priceId = STRIPE_PRICE_ID,
 }: {
   customerId: string
-  priceId: string
+  priceId?: string
 }) {
   return await stripe.subscriptions.create({
     customer: customerId,

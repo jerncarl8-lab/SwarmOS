@@ -1,19 +1,29 @@
 import { NextResponse } from 'next/server'
-import { createCheckoutSession } from '@/lib/stripe'
+import { createCheckoutSession, STRIPE_PRICE_ID } from '@/lib/stripe'
 
 export async function POST(request: Request) {
   try {
     const { priceId, successUrl, cancelUrl, customerEmail } = await request.json()
 
-    if (!priceId || !successUrl || !cancelUrl) {
+    // Use provided priceId or fall back to environment variable
+    const finalPriceId = priceId || STRIPE_PRICE_ID
+
+    if (!finalPriceId) {
       return NextResponse.json(
-        { error: 'priceId, successUrl, and cancelUrl are required' },
+        { error: 'priceId is required (either in request or STRIPE_PRICE_ID env var)' },
+        { status: 400 }
+      )
+    }
+
+    if (!successUrl || !cancelUrl) {
+      return NextResponse.json(
+        { error: 'successUrl and cancelUrl are required' },
         { status: 400 }
       )
     }
 
     const session = await createCheckoutSession({
-      priceId,
+      priceId: finalPriceId,
       successUrl,
       cancelUrl,
       customerEmail,
