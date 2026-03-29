@@ -67,7 +67,13 @@ export default function Home() {
           </div>
         </div>
 
-        <div className="mt-12 text-center">
+        <div className="mt-12 text-center space-y-4">
+          <a
+            href="/dashboard"
+            className="inline-block px-8 py-3 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-lg transition-colors"
+          >
+            🚀 Open Dashboard
+          </a>
           <p className="text-sm opacity-70">
             Edit <code className="font-mono font-bold">app/page.tsx</code> to get started
           </p>
