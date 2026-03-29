@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import { sendSMS } from '@/lib/twilio'
+import { twilioClient, TWILIO_NUMBER } from '@/lib/twilio'
 
 export async function POST(request: Request) {
   try {
@@ -12,7 +12,11 @@ export async function POST(request: Request) {
       )
     }
 
-    const message = await sendSMS(to, body)
+    const message = await twilioClient.messages.create({
+      body,
+      from: TWILIO_NUMBER,
+      to,
+    })
 
     return NextResponse.json({
       success: true,

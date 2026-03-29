@@ -1,9 +1,9 @@
 import { NextResponse } from 'next/server'
-import { sendEmail } from '@/lib/resend'
+import { resend } from '@/lib/resend'
 
 export async function POST(request: Request) {
   try {
-    const { to, subject, html, from } = await request.json()
+    const { to, subject, html, from = 'onboarding@resend.dev' } = await request.json()
 
     if (!to || !subject || !html) {
       return NextResponse.json(
@@ -12,7 +12,12 @@ export async function POST(request: Request) {
       )
     }
 
-    const result = await sendEmail({ to, subject, html, from })
+    const result = await resend.emails.send({
+      from,
+      to,
+      subject,
+      html,
+    })
 
     return NextResponse.json({
       success: true,

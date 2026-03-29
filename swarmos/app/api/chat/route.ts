@@ -1,9 +1,9 @@
 import { NextResponse } from 'next/server'
-import { getChatCompletion } from '@/lib/openai'
+import { openai } from '@/lib/openai'
 
 export async function POST(request: Request) {
   try {
-    const { message, model = 'gpt-4' } = await request.json()
+    const { message, model = 'gpt-4o-mini' } = await request.json()
 
     if (!message) {
       return NextResponse.json(
@@ -12,10 +12,12 @@ export async function POST(request: Request) {
       )
     }
 
-    const response = await getChatCompletion(
-      [{ role: 'user', content: message }],
-      model
-    )
+    const completion = await openai.chat.completions.create({
+      model,
+      messages: [{ role: 'user', content: message }],
+    })
+
+    const response = completion.choices[0]?.message?.content || ''
 
     return NextResponse.json({
       success: true,

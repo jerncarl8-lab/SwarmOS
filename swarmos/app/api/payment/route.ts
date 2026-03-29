@@ -1,11 +1,10 @@
 import { NextResponse } from 'next/server'
-import { createCheckoutSession, STRIPE_PRICE_ID } from '@/lib/stripe'
+import { stripe, STRIPE_PRICE_ID } from '@/lib/stripe'
 
 export async function POST(request: Request) {
   try {
     const { priceId, successUrl, cancelUrl, customerEmail } = await request.json()
 
-    // Use provided priceId or fall back to environment variable
     const finalPriceId = priceId || STRIPE_PRICE_ID
 
     if (!finalPriceId) {
@@ -22,11 +21,17 @@ export async function POST(request: Request) {
       )
     }
 
-    const session = await createCheckoutSession({
-      priceId: finalPriceId,
-      successUrl,
-      cancelUrl,
-      customerEmail,
+    const session = await stripe.checkout.sessions.create({
+      mode: 'payment',
+      line_items: [
+        {
+          price: finalPriceId,
+          quantity: 1,
+        },
+      ],
+      success_url: successUrl,
+      cancel_url: cancelUrl,
+      customer_email: customerEmail,
     })
 
     return NextResponse.json({
