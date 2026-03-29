@@ -1,0 +1,45 @@
+{
+  "users": [
+    {
+      "id": "1",
+      "email": "demo@example.com",
+      "name": "Demo User",
+      "company": "Demo Corp",
+      "createdAt": "2024-01-01T00:00:00.000Z"
+    }
+  ],
+  "leads": [
+    {
+      "id": "1",
+      "email": "john@acme.com",
+      "company": "Acme Corp",
+      "firstName": "John",
+      "status": "new",
+      "contacted": false,
+      "createdAt": "2024-01-01T00:00:00.000Z"
+    },
+    {
+      "id": "2",
+      "email": "jane@techco.com",
+      "company": "TechCo",
+      "firstName": "Jane",
+      "status": "contacted",
+      "contacted": true,
+      "contactedAt": "2024-01-02T00:00:00.000Z",
+      "createdAt": "2024-01-01T00:00:00.000Z"
+    }
+  ],
+  "campaigns": [
+    {
+      "id": "1",
+      "name": "Q1 Outreach",
+      "status": "active",
+      "sent": 45,
+      "replies": 12,
+      "meetings": 3,
+      "createdAt": "2024-01-01T00:00:00.000Z"
+    }
+  ],
+  "outreach": [],
+  "meetings": []
+}
