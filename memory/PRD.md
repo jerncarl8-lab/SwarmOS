@@ -1,54 +1,64 @@
 # SwarmOS — AI SDR Automation Platform
 
 ## Problem Statement
-Full AI SaaS system for Sales Development Representative (SDR) automation. Manages leads, generates personalized cold emails, sends them, reads replies, classifies sentiments, auto-books meetings, and optimizes campaign metrics.
+Full AI SaaS system for Sales Development Representative (SDR) automation. Manages leads, generates personalized cold emails using OpenAI, sends them via Resend, reads replies from inbox, classifies sentiments using AI, auto-books meetings, and optimizes campaign metrics.
 
 ## Architecture
 - **Backend**: FastAPI (Python) on port 8001 with MongoDB
-- **Frontend**: React CRA on port 3000
-- **Database**: MongoDB (collections: users, leads, outreach, meetings, campaigns, insights)
+- **Frontend**: React CRA on port 3000 with Tailwind CSS
+- **Database**: MongoDB (collections: users, leads, outreach, meetings, campaigns, insights, onboarding, payment_transactions)
+- **AI**: OpenAI GPT-4o via Emergent LLM key
+- **Payments**: Stripe via emergentintegrations
 - **Preview URL**: https://lead-automation-27.preview.emergentagent.com
 
-## What's Been Implemented (2026-04-15)
-- [x] Backend ported from Node.js/Express to FastAPI/Python with MongoDB
-- [x] Login flow (POST /api/login — email-only, no password)
-- [x] Dashboard with stats (GET /api/stats)
-- [x] Leads CRUD (GET/POST/PATCH /api/leads)
-- [x] Outreach endpoints (GET/POST /api/outreach, /api/outreach/send)
-- [x] Inbox/replies endpoints (GET /api/inbox/replies, POST /api/inbox/process)
-- [x] Meetings endpoints (GET/POST /api/meetings)
-- [x] Automation start/stop/status endpoints
-- [x] Optimizer + insights endpoints
-- [x] Health endpoint
-- [x] Seed data on startup (demo user, 5 leads, 1 campaign)
-- [x] Frontend: Login.jsx, Dashboard.jsx, Stats.jsx
-- [x] Full test suite passing (15/15 backend, frontend flows verified)
+## What's Been Implemented
 
-## MOCKED (Not Real)
-- OpenAI email generation — uses template string
-- Resend email sending — not integrated
-- Inbox reading — simulated
+### Phase 1 — Core Backend (2026-04-15)
+- [x] FastAPI backend with MongoDB
+- [x] All CRUD endpoints: leads, outreach, inbox, meetings, automation, optimizer
+- [x] Login endpoint (email-only, returns {email, orgId, plan})
+- [x] Stats endpoint
+- [x] Seed data on startup (demo user, 5 leads, 1 campaign)
+
+### Phase 2 — Stripe Integration (2026-04-15)
+- [x] POST /api/subscribe — Stripe checkout ($99/mo, "AI SDR SaaS")
+- [x] GET /api/checkout/status/{session_id} — payment status polling
+- [x] POST /api/webhook/stripe — webhook handler
+- [x] payment_transactions collection
+
+### Phase 3 — OpenAI Integration (2026-04-15)
+- [x] POST /api/generate-email — AI-generated cold emails (GPT-4o)
+- [x] POST /api/classify-reply — AI sentiment classification
+- [x] Emergent LLM key configured
+
+### Phase 4 — Full Design Overhaul (2026-04-15)
+- [x] Landing page: navbar, hero, social proof, feature cards, pricing (Free/$0 + Pro/$99), footer
+- [x] Onboarding: 4-step wizard with progress bar (Email → Target → Offer → Volume)
+- [x] Dashboard: sidebar nav (Dashboard, Outreach, Meetings, Analytics, Settings), KPI cards, activity feed
+- [x] Upgrade to Pro ($99/mo) → Stripe checkout
+- [x] Logout functionality
+- [x] Onboarding data saved to backend
+- [x] Outfit + IBM Plex Sans typography
+- [x] Swiss high-contrast design (black/white)
+
+## MOCKED
+- Resend email sending — not integrated (requires user API key + verified domain)
+- Gmail inbox reading — simulated
 - Calendly booking — simulated
-- Sentiment classification — hardcoded "interested"
 
 ## Backlog
-### P0 (Next)
-- User may provide more component code snippets to apply
-
 ### P1
-- OpenAI integration for real email generation & sentiment classification
-- Resend integration for actual email sending (requires user's API key + verified domain)
+- Resend integration for actual email sending
 - Gmail API for inbox processing
 - Calendly API for meeting booking
 
 ### P2
 - JWT auth with password hashing
-- Logout functionality
-- Error handling on frontend (login failures, loading states)
-- Better UI/styling for Login and Dashboard
-- Navigation sidebar, outreach history view, leads table view
+- Campaign management CRUD
+- Real-time activity feed with WebSockets
+- Analytics charts (Recharts)
 
 ### P3
-- Performance optimizer with real AI suggestions
-- Campaign management
-- Analytics charts (Recharts)
+- Multi-tenant (orgId-based data isolation)
+- Webhook for plan upgrades after Stripe payment
+- Email scheduling & rate limiting
