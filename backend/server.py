@@ -9,6 +9,7 @@ from pydantic import BaseModel
 from typing import Optional
 from datetime import datetime, timezone
 from emergentintegrations.payments.stripe.checkout import StripeCheckout, CheckoutSessionRequest
+from emergentintegrations.llm.chat import LlmChat, UserMessage
 
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / '.env')
@@ -54,6 +55,15 @@ class MeetingCreate(BaseModel):
 class CheckoutRequest(BaseModel):
     email: str
     origin_url: str
+
+class OnboardingData(BaseModel):
+    email: str
+    target: Optional[str] = None
+    offer: Optional[str] = None
+    volume: Optional[str] = None
+
+class GenerateEmailRequest(BaseModel):
+    leadId: str
 
 # ---------- Seed data ----------
 async def seed_database():
@@ -315,6 +325,74 @@ async def optimize():
 async def get_insights():
     insight = await db.insights.find_one({}, {"_id": 0}, sort=[("createdAt", -1)])
     return {"success": True, "data": insight}
+
+# ---------- Onboarding ----------
+@api_router.post("/onboarding")
+async def save_onboarding(req: OnboardingData):
+    data = req.model_dump()
+    data["createdAt"] = datetime.now(timezone.utc).isoformat()
+    await db.onboarding.update_one(
+        {"email": req.email},
+        {"$set": data},
+        upsert=True
+    )
+    return {"success": True}
+
+@api_router.get("/onboarding/{email}")
+async def get_onboarding(email: str):
+    data = await db.onboarding.find_one({"email": email}, {"_id": 0})
+    return {"success": True, "data": data}
+
+# ---------- AI Email Generation ----------
+@api_router.post("/generate-email")
+async def generate_email(req: GenerateEmailRequest):
+    lead = await db.leads.find_one({"id": req.leadId}, {"_id": 0})
+    if not lead:
+        return {"success": False, "error": "Lead not found"}
+
+    llm_key = os.environ.get("EMERGENT_LLM_KEY")
+    chat = LlmChat(
+        api_key=llm_key,
+        session_id=f"email-gen-{req.leadId}",
+        system_message="You are an expert cold email copywriter for B2B SaaS sales. Write short, personalized, high-converting cold emails. No fluff. Max 4 sentences."
+    )
+    chat.with_model("openai", "gpt-4o")
+
+    msg = UserMessage(
+        text=f"Write a cold email to {lead.get('firstName', 'there')} at {lead.get('company', 'their company')}. We help companies book more meetings automatically using AI. Keep it casual and direct."
+    )
+    response = await chat.send_message(msg)
+
+    return {"success": True, "content": response, "lead": lead}
+
+# ---------- AI Sentiment Classification ----------
+@api_router.post("/classify-reply")
+async def classify_reply(req: InboxProcessRequest):
+    llm_key = os.environ.get("EMERGENT_LLM_KEY")
+    chat = LlmChat(
+        api_key=llm_key,
+        session_id=f"classify-{req.emailId}",
+        system_message="You classify email replies into exactly one category. Reply with ONLY one word: interested, not_interested, or needs_followup"
+    )
+    chat.with_model("openai", "gpt-4o")
+
+    msg = UserMessage(text=f"Classify this reply:\n\n{req.content}")
+    sentiment = await chat.send_message(msg)
+    sentiment = sentiment.strip().lower().replace(" ", "_")
+
+    if sentiment not in ["interested", "not_interested", "needs_followup"]:
+        sentiment = "needs_followup"
+
+    outreach = await db.outreach.find_one({"email": req.fromEmail}, {"_id": 0})
+    if outreach:
+        await db.outreach.update_one(
+            {"email": req.fromEmail},
+            {"$set": {"replied": True, "repliedAt": datetime.now(timezone.utc).isoformat(), "replyContent": req.content, "sentiment": sentiment}}
+        )
+        if outreach.get("leadId"):
+            await db.leads.update_one({"id": outreach["leadId"]}, {"$set": {"status": sentiment}})
+
+    return {"success": True, "sentiment": sentiment}
 
 # ---------- Stripe Checkout ----------
 @api_router.post("/subscribe")

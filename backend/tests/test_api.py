@@ -1,6 +1,6 @@
 """
 Backend API Tests for SwarmOS Lead Automation System
-Tests: Health, Login, Stats, Leads, Outreach endpoints
+Tests: Health, Login, Stats, Leads, Outreach, Onboarding, AI Email, Stripe endpoints
 """
 import pytest
 import requests
@@ -23,17 +23,17 @@ class TestHealth:
 
 
 class TestLogin:
-    """Login endpoint tests"""
+    """Login endpoint tests - returns email, orgId, plan"""
     
     def test_login_existing_user(self):
         """POST /api/login - login with existing demo user"""
-        response = requests.post(f"{BASE_URL}/api/login", json={"email": "demo@example.com"})
+        response = requests.post(f"{BASE_URL}/api/login", json={"email": "demo@test.com"})
         assert response.status_code == 200
         data = response.json()
         assert "email" in data
-        assert data["email"] == "demo@example.com"
-        assert "id" in data
-        assert "name" in data
+        assert data["email"] == "demo@test.com"
+        assert "orgId" in data
+        assert "plan" in data
         print(f"Login existing user passed: {data}")
     
     def test_login_new_user(self):
@@ -44,7 +44,9 @@ class TestLogin:
         data = response.json()
         assert "email" in data
         assert data["email"] == test_email
-        assert "id" in data
+        assert "orgId" in data
+        assert "plan" in data
+        assert data["plan"] == "free"  # New users get free plan
         print(f"Login new user passed: {data}")
 
 
@@ -63,6 +65,8 @@ class TestStats:
         assert "sent" in data
         assert "replies" in data
         assert "booked" in data
+        assert "conversionRate" in data
+        assert "replyRate" in data
         
         # Verify data types
         assert isinstance(data["leads"], int)
@@ -285,6 +289,104 @@ class TestAutomation:
         assert stop_data["success"] == True
         assert stop_data["status"]["running"] == False
         print("Automation stopped")
+
+
+class TestOnboarding:
+    """Onboarding endpoint tests - NEW"""
+    
+    def test_save_onboarding(self):
+        """POST /api/onboarding - saves onboarding data"""
+        onboarding_data = {
+            "email": "TEST_onboard@example.com",
+            "target": "SaaS founders",
+            "offer": "AI meeting booking",
+            "volume": "200"
+        }
+        response = requests.post(f"{BASE_URL}/api/onboarding", json=onboarding_data)
+        assert response.status_code == 200
+        data = response.json()
+        assert "success" in data
+        assert data["success"] == True
+        print(f"Save onboarding passed: {data}")
+    
+    def test_get_onboarding(self):
+        """GET /api/onboarding/{email} - retrieves onboarding data"""
+        # First save onboarding data
+        test_email = "TEST_onboard_get@example.com"
+        onboarding_data = {
+            "email": test_email,
+            "target": "CTOs at startups",
+            "offer": "Automated outreach",
+            "volume": "150"
+        }
+        requests.post(f"{BASE_URL}/api/onboarding", json=onboarding_data)
+        
+        # Then retrieve it
+        response = requests.get(f"{BASE_URL}/api/onboarding/{test_email}")
+        assert response.status_code == 200
+        data = response.json()
+        assert "success" in data
+        assert data["success"] == True
+        assert "data" in data
+        
+        retrieved = data["data"]
+        assert retrieved["email"] == test_email
+        assert retrieved["target"] == onboarding_data["target"]
+        assert retrieved["offer"] == onboarding_data["offer"]
+        assert retrieved["volume"] == onboarding_data["volume"]
+        print(f"Get onboarding passed: {retrieved}")
+
+
+class TestGenerateEmail:
+    """AI Email Generation endpoint tests - NEW (OpenAI integration)"""
+    
+    def test_generate_email_for_lead(self):
+        """POST /api/generate-email - generates AI email for a lead"""
+        # Get a lead first
+        leads_response = requests.get(f"{BASE_URL}/api/leads")
+        leads = leads_response.json()["data"]
+        lead_id = leads[0]["id"]
+        
+        response = requests.post(f"{BASE_URL}/api/generate-email", json={"leadId": lead_id})
+        assert response.status_code == 200
+        data = response.json()
+        assert "success" in data
+        assert data["success"] == True
+        assert "content" in data
+        assert "lead" in data
+        
+        # Verify content is a non-empty string (AI generated)
+        assert isinstance(data["content"], str)
+        assert len(data["content"]) > 50  # Should be a reasonable email
+        print(f"Generate email passed: {data['content'][:100]}...")
+    
+    def test_generate_email_invalid_lead(self):
+        """POST /api/generate-email - returns error for invalid leadId"""
+        response = requests.post(f"{BASE_URL}/api/generate-email", json={"leadId": "invalid_lead_999"})
+        assert response.status_code == 200
+        data = response.json()
+        assert data["success"] == False
+        assert "error" in data
+        print(f"Invalid lead email generation handled correctly: {data}")
+
+
+class TestStripeSubscribe:
+    """Stripe Checkout endpoint tests - NEW"""
+    
+    def test_create_checkout_session(self):
+        """POST /api/subscribe - creates Stripe checkout session"""
+        subscribe_data = {
+            "email": "TEST_stripe@example.com",
+            "origin_url": "https://lead-automation-27.preview.emergentagent.com"
+        }
+        response = requests.post(f"{BASE_URL}/api/subscribe", json=subscribe_data)
+        assert response.status_code == 200
+        data = response.json()
+        assert "url" in data
+        
+        # Verify it's a valid Stripe checkout URL
+        assert "checkout.stripe.com" in data["url"]
+        print(f"Stripe checkout session created: {data['url'][:80]}...")
 
 
 if __name__ == "__main__":
