@@ -52,14 +52,8 @@ class MeetingCreate(BaseModel):
     scheduledAt: Optional[str] = None
 
 class CheckoutRequest(BaseModel):
-    plan: str
+    email: str
     origin_url: str
-
-# Plan pricing (server-side only — never accept amounts from frontend)
-PLANS = {
-    "pro": {"name": "Pro", "amount": 29.00, "currency": "usd"},
-    "enterprise": {"name": "Enterprise", "amount": 99.00, "currency": "usd"},
-}
 
 # ---------- Seed data ----------
 async def seed_database():
@@ -325,35 +319,29 @@ async def get_insights():
 # ---------- Stripe Checkout ----------
 @api_router.post("/checkout")
 async def create_checkout(req: CheckoutRequest, http_request: Request):
-    if req.plan not in PLANS:
-        return {"success": False, "error": "Invalid plan"}
-
-    plan = PLANS[req.plan]
     stripe_api_key = os.environ.get("STRIPE_API_KEY")
     host_url = str(http_request.base_url).rstrip("/")
     webhook_url = f"{host_url}/api/webhook/stripe"
     stripe_checkout = StripeCheckout(api_key=stripe_api_key, webhook_url=webhook_url)
 
     success_url = f"{req.origin_url}/success?session_id={{CHECKOUT_SESSION_ID}}"
-    cancel_url = f"{req.origin_url}/"
+    cancel_url = req.origin_url
 
     checkout_req = CheckoutSessionRequest(
-        amount=plan["amount"],
-        currency=plan["currency"],
+        amount=1000.00,
+        currency="usd",
         success_url=success_url,
         cancel_url=cancel_url,
-        metadata={"plan": req.plan, "plan_name": plan["name"]}
+        metadata={"email": req.email, "product": "AI SDR SaaS"}
     )
     session = await stripe_checkout.create_checkout_session(checkout_req)
 
-    # Store transaction
     txn = {
         "session_id": session.session_id,
-        "plan": req.plan,
-        "amount": plan["amount"],
-        "currency": plan["currency"],
+        "email": req.email,
+        "amount": 1000.00,
+        "currency": "usd",
         "payment_status": "pending",
-        "metadata": {"plan": req.plan, "plan_name": plan["name"]},
         "createdAt": datetime.now(timezone.utc).isoformat()
     }
     await db.payment_transactions.insert_one(txn)
@@ -369,7 +357,6 @@ async def checkout_status(session_id: str, http_request: Request):
 
     status = await stripe_checkout.get_checkout_status(session_id)
 
-    # Update transaction
     txn = await db.payment_transactions.find_one({"session_id": session_id})
     if txn and txn.get("payment_status") != "paid":
         await db.payment_transactions.update_one(
@@ -403,7 +390,7 @@ async def stripe_webhook(request: Request):
         return {"received": True}
     except Exception as e:
         logging.error(f"Webhook error: {e}")
-        return {"received": False}
+        return {"received": True}
 
 # ---------- Health ----------
 @api_router.get("/health")
