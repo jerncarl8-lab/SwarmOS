@@ -3,6 +3,8 @@ import Card from "../components/Card";
 import Topbar from "../layout/Topbar";
 
 export default function Dashboard({ user, stats }) {
+  if (!stats) return <p>Loading...</p>;
+
   return (
     <div className="p-6 w-full">
       <Topbar user={user} />
