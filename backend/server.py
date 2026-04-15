@@ -24,6 +24,11 @@ api_router = APIRouter(prefix="/api")
 class LoginRequest(BaseModel):
     email: str
 
+class UserOut(BaseModel):
+    email: str
+    orgId: str
+    plan: str
+
 class LeadCreate(BaseModel):
     email: str
     company: str
@@ -50,11 +55,9 @@ async def seed_database():
     users_count = await db.users.count_documents({})
     if users_count == 0:
         await db.users.insert_one({
-            "id": "1",
-            "email": "demo@example.com",
-            "name": "Demo User",
-            "company": "Demo Corp",
-            "createdAt": datetime.now(timezone.utc).isoformat()
+            "email": "demo@test.com",
+            "orgId": "org_1",
+            "plan": "free"
         })
         logging.info("Seeded demo user")
 
@@ -85,15 +88,13 @@ async def login(req: LoginRequest):
     user = await db.users.find_one({"email": req.email}, {"_id": 0})
     if not user:
         user = {
-            "id": str(int(datetime.now(timezone.utc).timestamp())),
             "email": req.email,
-            "name": req.email.split("@")[0],
-            "company": "Unknown",
-            "createdAt": datetime.now(timezone.utc).isoformat()
+            "orgId": "org_" + str(int(datetime.now(timezone.utc).timestamp())),
+            "plan": "free"
         }
         await db.users.insert_one(user)
         user.pop("_id", None)
-    return user
+    return {"email": user["email"], "orgId": user["orgId"], "plan": user["plan"]}
 
 # ---------- Stats ----------
 @api_router.get("/stats")
