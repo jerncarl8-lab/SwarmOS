@@ -317,8 +317,8 @@ async def get_insights():
     return {"success": True, "data": insight}
 
 # ---------- Stripe Checkout ----------
-@api_router.post("/checkout")
-async def create_checkout(req: CheckoutRequest, http_request: Request):
+@api_router.post("/subscribe")
+async def subscribe(req: CheckoutRequest, http_request: Request):
     stripe_api_key = os.environ.get("STRIPE_API_KEY")
     host_url = str(http_request.base_url).rstrip("/")
     webhook_url = f"{host_url}/api/webhook/stripe"
@@ -346,7 +346,7 @@ async def create_checkout(req: CheckoutRequest, http_request: Request):
     }
     await db.payment_transactions.insert_one(txn)
 
-    return {"success": True, "url": session.url, "session_id": session.session_id}
+    return {"url": session.url}
 
 @api_router.get("/checkout/status/{session_id}")
 async def checkout_status(session_id: str, http_request: Request):
