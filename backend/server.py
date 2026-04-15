@@ -5,11 +5,9 @@ from motor.motor_asyncio import AsyncIOMotorClient
 import os
 import logging
 from pathlib import Path
-from pydantic import BaseModel, Field, ConfigDict
-from typing import List
-import uuid
+from pydantic import BaseModel
+from typing import Optional
 from datetime import datetime, timezone
-
 
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / '.env')
@@ -19,54 +17,305 @@ mongo_url = os.environ['MONGO_URL']
 client = AsyncIOMotorClient(mongo_url)
 db = client[os.environ['DB_NAME']]
 
-# Create the main app without a prefix
 app = FastAPI()
-
-# Create a router with the /api prefix
 api_router = APIRouter(prefix="/api")
 
+# ---------- Models ----------
+class LoginRequest(BaseModel):
+    email: str
 
-# Define Models
-class StatusCheck(BaseModel):
-    model_config = ConfigDict(extra="ignore")  # Ignore MongoDB's _id field
-    
-    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
-    client_name: str
-    timestamp: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+class LeadCreate(BaseModel):
+    email: str
+    company: str
+    firstName: str
 
-class StatusCheckCreate(BaseModel):
-    client_name: str
+class LeadUpdate(BaseModel):
+    status: Optional[str] = None
+    contacted: Optional[bool] = None
 
-# Add your routes to the router instead of directly to app
-@api_router.get("/")
-async def root():
-    return {"message": "Hello World"}
+class OutreachSendRequest(BaseModel):
+    leadId: str
 
-@api_router.post("/status", response_model=StatusCheck)
-async def create_status_check(input: StatusCheckCreate):
-    status_dict = input.model_dump()
-    status_obj = StatusCheck(**status_dict)
-    
-    # Convert to dict and serialize datetime to ISO string for MongoDB
-    doc = status_obj.model_dump()
-    doc['timestamp'] = doc['timestamp'].isoformat()
-    
-    _ = await db.status_checks.insert_one(doc)
-    return status_obj
+class InboxProcessRequest(BaseModel):
+    emailId: str
+    fromEmail: str
+    content: str
 
-@api_router.get("/status", response_model=List[StatusCheck])
-async def get_status_checks():
-    # Exclude MongoDB's _id field from the query results
-    status_checks = await db.status_checks.find({}, {"_id": 0}).to_list(1000)
-    
-    # Convert ISO string timestamps back to datetime objects
-    for check in status_checks:
-        if isinstance(check['timestamp'], str):
-            check['timestamp'] = datetime.fromisoformat(check['timestamp'])
-    
-    return status_checks
+class MeetingCreate(BaseModel):
+    leadId: str
+    scheduledAt: Optional[str] = None
 
-# Include the router in the main app
+# ---------- Seed data ----------
+async def seed_database():
+    users_count = await db.users.count_documents({})
+    if users_count == 0:
+        await db.users.insert_one({
+            "id": "1",
+            "email": "demo@example.com",
+            "name": "Demo User",
+            "company": "Demo Corp",
+            "createdAt": datetime.now(timezone.utc).isoformat()
+        })
+        logging.info("Seeded demo user")
+
+    leads_count = await db.leads.count_documents({})
+    if leads_count == 0:
+        leads = [
+            {"id": "1", "email": "john@acme.com", "company": "Acme Corp", "firstName": "John", "status": "new", "contacted": False, "createdAt": datetime.now(timezone.utc).isoformat()},
+            {"id": "2", "email": "jane@techco.com", "company": "TechCo", "firstName": "Jane", "status": "contacted", "contacted": True, "contactedAt": datetime.now(timezone.utc).isoformat(), "createdAt": datetime.now(timezone.utc).isoformat()},
+            {"id": "3", "email": "bob@startup.io", "company": "Startup Inc", "firstName": "Bob", "status": "interested", "contacted": True, "contactedAt": datetime.now(timezone.utc).isoformat(), "createdAt": datetime.now(timezone.utc).isoformat()},
+            {"id": "4", "email": "lisa@bigcorp.com", "company": "BigCorp", "firstName": "Lisa", "status": "new", "contacted": False, "createdAt": datetime.now(timezone.utc).isoformat()},
+            {"id": "5", "email": "mark@saas.io", "company": "SaaS Pro", "firstName": "Mark", "status": "new", "contacted": False, "createdAt": datetime.now(timezone.utc).isoformat()},
+        ]
+        await db.leads.insert_many(leads)
+        logging.info("Seeded leads")
+
+    campaigns_count = await db.campaigns.count_documents({})
+    if campaigns_count == 0:
+        await db.campaigns.insert_one({
+            "id": "1", "name": "Q1 Outreach", "status": "active",
+            "sent": 45, "replies": 12, "meetings": 3,
+            "createdAt": datetime.now(timezone.utc).isoformat()
+        })
+        logging.info("Seeded campaigns")
+
+# ---------- Auth ----------
+@api_router.post("/login")
+async def login(req: LoginRequest):
+    user = await db.users.find_one({"email": req.email}, {"_id": 0})
+    if not user:
+        user = {
+            "id": str(int(datetime.now(timezone.utc).timestamp())),
+            "email": req.email,
+            "name": req.email.split("@")[0],
+            "company": "Unknown",
+            "createdAt": datetime.now(timezone.utc).isoformat()
+        }
+        await db.users.insert_one(user)
+        user.pop("_id", None)
+    return user
+
+# ---------- Stats ----------
+@api_router.get("/stats")
+async def get_stats():
+    total_leads = await db.leads.count_documents({})
+    contacted = await db.leads.count_documents({"contacted": True})
+    total_outreach = await db.outreach.count_documents({})
+    replied = await db.outreach.count_documents({"replied": True})
+    meetings = await db.meetings.count_documents({})
+
+    return {
+        "leads": total_leads,
+        "contacted": contacted,
+        "sent": total_outreach,
+        "replies": replied,
+        "booked": meetings,
+        "conversionRate": round((meetings / contacted * 100), 1) if contacted > 0 else 0,
+        "replyRate": round((replied / total_outreach * 100), 1) if total_outreach > 0 else 0
+    }
+
+# ---------- Dashboard ----------
+@api_router.get("/dashboard")
+async def get_dashboard():
+    total_leads = await db.leads.count_documents({})
+    contacted = await db.leads.count_documents({"contacted": True})
+    replied_count = await db.outreach.count_documents({"replied": True})
+    meetings_count = await db.meetings.count_documents({})
+    recent = await db.outreach.find({}, {"_id": 0}).sort("sentAt", -1).limit(10).to_list(10)
+
+    return {
+        "success": True,
+        "data": {
+            "leads": {
+                "total": total_leads,
+                "contacted": contacted,
+                "replied": replied_count,
+                "meetings": meetings_count
+            },
+            "outreach": {
+                "total": await db.outreach.count_documents({}),
+                "replied": replied_count,
+                "replyRate": 0
+            },
+            "insights": None,
+            "recentActivity": recent
+        }
+    }
+
+# ---------- Leads ----------
+@api_router.get("/leads")
+async def get_leads():
+    leads = await db.leads.find({}, {"_id": 0}).to_list(1000)
+    return {"success": True, "data": leads}
+
+@api_router.post("/leads")
+async def add_lead(req: LeadCreate):
+    lead = {
+        "id": str(int(datetime.now(timezone.utc).timestamp())),
+        "email": req.email,
+        "company": req.company,
+        "firstName": req.firstName,
+        "status": "new",
+        "contacted": False,
+        "createdAt": datetime.now(timezone.utc).isoformat()
+    }
+    await db.leads.insert_one(lead)
+    lead.pop("_id", None)
+    return {"success": True, "data": lead}
+
+@api_router.patch("/leads/{lead_id}")
+async def update_lead(lead_id: str, req: LeadUpdate):
+    update_data = {k: v for k, v in req.model_dump().items() if v is not None}
+    if update_data:
+        await db.leads.update_one({"id": lead_id}, {"$set": update_data})
+    lead = await db.leads.find_one({"id": lead_id}, {"_id": 0})
+    return {"success": True, "data": lead}
+
+# ---------- Outreach ----------
+@api_router.get("/outreach")
+async def get_outreach():
+    outreach = await db.outreach.find({}, {"_id": 0}).to_list(1000)
+    return {"success": True, "data": outreach}
+
+@api_router.post("/outreach/send")
+async def send_outreach(req: OutreachSendRequest):
+    lead = await db.leads.find_one({"id": req.leadId}, {"_id": 0})
+    if not lead:
+        return {"success": False, "error": "Lead not found"}
+
+    email_content = f"Hi {lead.get('firstName', '')},\n\nI noticed {lead.get('company', 'your company')} is doing great work. I'd love to connect and share how we can help you scale even further.\n\nBest regards"
+
+    outreach_doc = {
+        "id": str(int(datetime.now(timezone.utc).timestamp())),
+        "leadId": lead["id"],
+        "email": lead["email"],
+        "company": lead["company"],
+        "content": email_content,
+        "sent": True,
+        "replied": False,
+        "sentAt": datetime.now(timezone.utc).isoformat()
+    }
+    await db.outreach.insert_one(outreach_doc)
+    outreach_doc.pop("_id", None)
+
+    await db.leads.update_one(
+        {"id": lead["id"]},
+        {"$set": {"contacted": True, "status": "contacted", "contactedAt": datetime.now(timezone.utc).isoformat()}}
+    )
+
+    return {"success": True, "data": outreach_doc}
+
+# ---------- Inbox ----------
+@api_router.get("/inbox/replies")
+async def get_replies():
+    replies = await db.outreach.find({"replied": True}, {"_id": 0}).to_list(1000)
+    return {"success": True, "data": replies}
+
+@api_router.post("/inbox/process")
+async def process_inbox(req: InboxProcessRequest):
+    outreach = await db.outreach.find_one({"email": req.fromEmail}, {"_id": 0})
+    if not outreach:
+        return {"success": False, "error": "No matching outreach found"}
+
+    sentiment = "interested"
+
+    await db.outreach.update_one(
+        {"email": req.fromEmail},
+        {"$set": {
+            "replied": True,
+            "repliedAt": datetime.now(timezone.utc).isoformat(),
+            "replyContent": req.content,
+            "sentiment": sentiment
+        }}
+    )
+
+    if outreach.get("leadId"):
+        await db.leads.update_one(
+            {"id": outreach["leadId"]},
+            {"$set": {"status": sentiment}}
+        )
+
+    return {"success": True, "data": {"sentiment": sentiment}}
+
+# ---------- Meetings ----------
+@api_router.get("/meetings")
+async def get_meetings():
+    meetings = await db.meetings.find({}, {"_id": 0}).to_list(1000)
+    return {"success": True, "data": meetings}
+
+@api_router.post("/meetings")
+async def create_meeting(req: MeetingCreate):
+    meeting = {
+        "id": str(int(datetime.now(timezone.utc).timestamp())),
+        "leadId": req.leadId,
+        "scheduledAt": req.scheduledAt or datetime.now(timezone.utc).isoformat(),
+        "status": "scheduled",
+        "createdAt": datetime.now(timezone.utc).isoformat()
+    }
+    await db.meetings.insert_one(meeting)
+    meeting.pop("_id", None)
+    return {"success": True, "data": meeting}
+
+# ---------- Automation ----------
+automation_running = False
+
+@api_router.post("/automation/start")
+async def start_automation():
+    global automation_running
+    automation_running = True
+    return {"success": True, "message": "Automation started", "status": {"running": True}}
+
+@api_router.post("/automation/stop")
+async def stop_automation():
+    global automation_running
+    automation_running = False
+    return {"success": True, "message": "Automation stopped", "status": {"running": False}}
+
+@api_router.get("/automation/status")
+async def automation_status():
+    return {"success": True, "data": {"running": automation_running}}
+
+# ---------- Optimizer ----------
+@api_router.post("/optimize")
+async def optimize():
+    total_leads = await db.leads.count_documents({})
+    contacted = await db.leads.count_documents({"contacted": True})
+    total_outreach = await db.outreach.count_documents({})
+    replied = await db.outreach.count_documents({"replied": True})
+    meetings = await db.meetings.count_documents({})
+
+    metrics = {
+        "total": total_leads,
+        "contacted": contacted,
+        "replied": replied,
+        "meetings": meetings,
+        "replyRate": round((replied / total_outreach * 100), 1) if total_outreach > 0 else 0
+    }
+
+    suggestions = "1. Personalize subject lines more\n2. Follow up within 48 hours\n3. Include social proof"
+
+    insight = {
+        "id": str(int(datetime.now(timezone.utc).timestamp())),
+        "metrics": metrics,
+        "suggestions": suggestions,
+        "createdAt": datetime.now(timezone.utc).isoformat()
+    }
+    await db.insights.insert_one(insight)
+    insight.pop("_id", None)
+
+    return {"success": True, "data": insight}
+
+@api_router.get("/insights")
+async def get_insights():
+    insight = await db.insights.find_one({}, {"_id": 0}, sort=[("createdAt", -1)])
+    return {"success": True, "data": insight}
+
+# ---------- Health ----------
+@api_router.get("/health")
+async def health():
+    return {"status": "healthy", "timestamp": datetime.now(timezone.utc).isoformat(), "automation": automation_running}
+
+# ---------- App setup ----------
 app.include_router(api_router)
 
 app.add_middleware(
@@ -77,13 +326,17 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Configure logging
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
 )
 logger = logging.getLogger(__name__)
 
+@app.on_event("startup")
+async def startup():
+    await seed_database()
+    logger.info("SwarmOS API started")
+
 @app.on_event("shutdown")
-async def shutdown_db_client():
+async def shutdown():
     client.close()
