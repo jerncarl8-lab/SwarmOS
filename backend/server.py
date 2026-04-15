@@ -328,7 +328,7 @@ async def subscribe(req: CheckoutRequest, http_request: Request):
     cancel_url = req.origin_url
 
     checkout_req = CheckoutSessionRequest(
-        amount=1000.00,
+        amount=99.00,
         currency="usd",
         success_url=success_url,
         cancel_url=cancel_url,
@@ -339,7 +339,7 @@ async def subscribe(req: CheckoutRequest, http_request: Request):
     txn = {
         "session_id": session.session_id,
         "email": req.email,
-        "amount": 1000.00,
+        "amount": 99.00,
         "currency": "usd",
         "payment_status": "pending",
         "createdAt": datetime.now(timezone.utc).isoformat()
