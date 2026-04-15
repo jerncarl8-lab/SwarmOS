@@ -16,7 +16,7 @@ export default function Dashboard({ user, stats }) {
       <Card>
         <h3 className="font-semibold mb-2">Activity</h3>
         <p className="text-gray-500">
-          Your AI agents are actively sending outreach and booking meetings.
+          We book meetings for you automatically.
         </p>
       </Card>
     </div>
