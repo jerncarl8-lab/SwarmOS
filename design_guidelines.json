@@ -1,0 +1,132 @@
+{
+  "theme": "light",
+  "archetype": "Swiss & High-Contrast (Archetype 4)",
+  "brand": {
+    "name": "SwarmOS",
+    "description": "AI SaaS platform for automated SDR outreach and meeting booking",
+    "tone": "Professional, authoritative, high-utility, and minimalist"
+  },
+  "colors": {
+    "background": {
+      "primary": "#FFFFFF",
+      "secondary": "#FAFAFA",
+      "tertiary": "#F4F4F5"
+    },
+    "text": {
+      "primary": "#000000",
+      "secondary": "#52525B",
+      "muted": "#A1A1AA",
+      "inverse": "#FFFFFF"
+    },
+    "border": {
+      "default": "#E4E4E7",
+      "focus": "#000000",
+      "active": "#18181B"
+    },
+    "accent": {
+      "primary": "#000000",
+      "primary_hover": "#27272A",
+      "danger": "#EF4444",
+      "success": "#10B981"
+    }
+  },
+  "typography": {
+    "primary_font": "Outfit",
+    "secondary_font": "IBM Plex Sans",
+    "headings": {
+      "font_family": "Outfit, sans-serif",
+      "h1": "text-5xl sm:text-6xl tracking-tight font-semibold",
+      "h2": "text-3xl sm:text-4xl tracking-tight font-medium",
+      "h3": "text-xl sm:text-2xl tracking-tight font-medium",
+      "h4": "text-lg font-medium tracking-tight",
+      "color": "#000000"
+    },
+    "body": {
+      "font_family": "'IBM Plex Sans', sans-serif",
+      "base": "text-base text-gray-600 leading-relaxed",
+      "small": "text-sm text-gray-500",
+      "overline": "text-xs font-semibold uppercase tracking-[0.2em] text-gray-500"
+    }
+  },
+  "spacing_and_layout": {
+    "container_padding": "p-8 md:p-12 lg:p-16",
+    "section_spacing": "py-24 md:py-32",
+    "grid_bento": "grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-6 md:gap-8",
+    "dashboard_grid": "grid grid-cols-1 md:grid-cols-4 gap-6",
+    "radius": "rounded-xl",
+    "alignment": "Left-align dense text and forms. Center-align hero headlines."
+  },
+  "components": {
+    "buttons": {
+      "primary": "bg-black text-white rounded-xl hover:bg-gray-800 transition-colors px-6 py-3 font-medium",
+      "secondary": "bg-white text-black border border-gray-200 rounded-xl hover:bg-gray-50 transition-colors px-6 py-3 font-medium",
+      "ghost": "text-gray-600 hover:text-black hover:bg-gray-100 rounded-xl transition-colors px-4 py-2"
+    },
+    "cards": {
+      "default": "bg-white border border-gray-200 rounded-xl shadow-sm p-6",
+      "interactive": "bg-white border border-gray-200 rounded-xl shadow-sm p-6 hover:-translate-y-1 hover:shadow-md transition-all cursor-pointer"
+    },
+    "inputs": {
+      "default": "w-full border border-gray-300 rounded-xl px-4 py-3 text-base focus:outline-none focus:ring-2 focus:ring-black focus:border-transparent transition-shadow",
+      "label": "block text-sm font-medium text-gray-700 mb-2"
+    },
+    "navigation": {
+      "header": "fixed top-0 w-full bg-white/70 backdrop-blur-xl border-b border-gray-200 z-50",
+      "sidebar": "h-screen bg-gray-50 border-r border-gray-200 flex flex-col w-64 p-4"
+    },
+    "data_display": {
+      "kpi_card": "flex flex-col gap-2 p-6 bg-white border border-gray-200 rounded-xl",
+      "kpi_value": "text-4xl font-semibold text-black tracking-tight",
+      "kpi_label": "text-sm font-medium text-gray-500"
+    }
+  },
+  "motion": {
+    "hover": "transition-all duration-200 ease-in-out",
+    "entrance": "animate-in fade-in slide-in-from-bottom-4 duration-500 ease-out"
+  },
+  "icons_library": "lucide-react",
+  "media": {
+    "hero_background": {
+      "url": "https://images.unsplash.com/photo-1753236980209-8a7bdd0652cc?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjA1MDV8MHwxfHNlYXJjaHwyfHx0ZWNobm9sb2d5JTIwYWJzdHJhY3QlMjB3aGl0ZXxlbnwwfHx8fDE3NzYyOTAyOTR8MA&ixlib=rb-4.1.0&q=85",
+      "description": "Abstract grey and white tech background. Use with low opacity (e.g., opacity-30) behind the hero section."
+    },
+    "feature_image": {
+      "url": "https://images.unsplash.com/photo-1691318110143-ebd82d266740?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjA1MDV8MHwxfHNlYXJjaHwxfHx0ZWNobm9sb2d5JTIwYWJzdHJhY3QlMjB3aGl0ZXxlbnwwfHx8fDE3NzYyOTAyOTR8MA&ixlib=rb-4.1.0&q=85",
+      "description": "Metal structure abstract pattern. Good for bento grid feature cards representing robust infrastructure."
+    },
+    "avatars": [
+      {
+        "url": "https://images.unsplash.com/photo-1762522926157-bcc04bf0b10a?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjY2NjV8MHwxfHNlYXJjaHwzfHxwcm9mZXNzaW9uYWwlMjBoZWFkc2hvdCUyMHBvcnRyYWl0fGVufDB8fHx8MTc3NjE4NjMwNHww&ixlib=rb-4.1.0&q=85",
+        "description": "Male avatar for activity feed or topbar profile"
+      },
+      {
+        "url": "https://images.unsplash.com/photo-1769636929388-99eff95d3bf1?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjY2NjV8MHwxfHNlYXJjaHw0fHxwcm9mZXNzaW9uYWwlMjBoZWFkc2hvdCUyMHBvcnRyYWl0fGVufDB8fHx8MTc3NjE4NjMwNHww&ixlib=rb-4.1.0&q=85",
+        "description": "Female avatar for activity feed"
+      }
+    ],
+    "sponsor_logos": [
+      {
+        "url": "https://images.unsplash.com/photo-1661347998423-b15d37d6f61e?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NTYxOTJ8MHwxfHNlYXJjaHwxfHxjb21wYW55JTIwYnJhbmQlMjBsb2dvfGVufDB8fHx8MTc3NjI5MDMwMHww&ixlib=rb-4.1.0&q=85",
+        "name": "Generic Brand Logo"
+      },
+      {
+        "url": "https://images.unsplash.com/photo-1775513143262-bf9ce8012556?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NTYxOTJ8MHwxfHNlYXJjaHwzfHxjb21wYW55JTIwYnJhbmQlMjBsb2dvfGVufDB8fHx8MTc3NjI5MDMwMHww&ixlib=rb-4.1.0&q=85",
+        "name": "Canon Logo"
+      },
+      {
+        "url": "https://images.unsplash.com/photo-1764344815160-0e2afc6939a0?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjAzMjd8MHwxfHNlYXJjaHwyfHxjb21wYW55JTIwbG9nbyUyMHdoaXRlJTIwYmFja2dyb3VuZHxlbnwwfHx8fDE3NzYyNDQyNTB8MA&ixlib=rb-4.1.0&q=85",
+        "name": "Subway Logo"
+      }
+    ]
+  },
+  "instructions_to_main_agent": [
+    "Use standard HTML tags and Tailwind CSS for the Landing Page layout to maintain maximum flexibility, utilizing bento grids where appropriate.",
+    "For the Onboarding Wizard and Dashboard, use Shadcn/UI components (cards, inputs, dropdowns) heavily customized to match the high-contrast, rounded-xl theme.",
+    "Ensure the application strictly uses the provided black/white contrast theme, avoiding 'SaaS Blue' or overused gradients.",
+    "All navigation and layout must be responsive (mobile-first), keeping grids 1-column on mobile and expanding on md/lg viewports.",
+    "Do NOT use 'Inter' for headings. Use 'Outfit' for headings and 'IBM Plex Sans' for body text. Add these to the HTML head via Google Fonts.",
+    "Every interactive element (buttons, forms, links) MUST have a semantic data-testid attribute for testing purposes.",
+    "The Onboarding Wizard should consist of 4 distinct steps visually tracked by a progress bar or step indicator.",
+    "The Dashboard must feature a prominent Topbar and Sidebar, prioritizing utility and data legibility over decorative elements."
+  ]
+}
