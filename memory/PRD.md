@@ -1,64 +1,53 @@
 # SwarmOS — AI SDR Automation Platform
 
 ## Problem Statement
-Full AI SaaS for SDR automation. AI finds leads, writes personalized emails, handles replies, classifies sentiment, and books meetings — on autopilot. Stripe for payments, ClickBank for affiliates.
+Full AI SaaS for SDR automation that sells TIME and MONEY. AI finds leads, writes emails, books meetings — replaces entire outbound teams.
 
 ## Architecture
 - **Backend**: FastAPI (Python) + MongoDB
 - **Frontend**: React CRA + Tailwind CSS
 - **AI**: OpenAI GPT-4o via Emergent LLM key
 - **Payments**: Stripe (3 tiers: $99, $297, $497)
-- **Affiliates**: ClickBank ref tracking via URL params
-- **Design**: Swiss high-contrast, Outfit + IBM Plex Sans
+- **Affiliates**: ClickBank ref tracking
 
 ## Implemented Features
 
-### Landing Page — Professional Sales Page
-- Sticky navbar + urgency bar (limited beta spots countdown)
-- Hero: "Stop Hiring SDRs. Let AI Book Your Meetings."
-- Social proof: 2,400+ meetings, $4.2M pipeline, 98% deliverability, 3.2x replies
-- Video section (placeholder for VSL/demo)
-- How it works (3 steps)
-- Testimonials (3 cards, 5-star ratings)
-- 3-tier pricing: Starter $99/mo, Growth $297/mo (Most Popular), Lifetime $497
-- Price anchoring: $2,388 crossed out → $497
-- Risk reversal: 30-day money-back guarantee
+### Sales Landing Page (Psychological Selling)
+- Countdown timer (urgency)
+- "Limited beta spots" scarcity
+- Live notification toasts ("Marcus just booked 3 meetings")
+- Exit-intent modal ("Don't leave money on the table")
+- Before/After comparison (manual vs SwarmOS)
+- ROI section (160 hrs saved, $50K+ pipeline, 50x ROI)
+- Video section (placeholder for VSL)
+- 3 testimonials with specific results
+- 3-tier pricing with anchoring ($2,388 → $497)
+- 30-day money-back guarantee
 - FAQ accordion (6 items)
-- Final CTA section (black bg)
-- ClickBank affiliate ref tracking (?ref=xxx passes through all CTAs)
+- Final CTA with urgency
+- Affiliate tracking (?ref=xxx)
 
-### Onboarding — 5-Step Wizard
-- Progress bar + step labels with icons
-- Email → Target → Offer → Volume → AI Preview
-- AI Preview: GPT-4o generates live cold email based on target/offer
-- Regenerate button
-- Launch → login + save onboarding → redirect to dashboard
+### Onboarding (5-step wizard)
+- Email → Target → Offer → Volume → AI Preview (GPT-4o)
 
 ### Dashboard
-- Sidebar: Dashboard, Outreach, Meetings, Analytics, Settings
-- KPI cards, Activity feed, multiple views
-- Upgrade to Pro (Stripe), Logout
-- Settings: account info (email, orgId, plan)
+- Sidebar, KPIs, Outreach/Meetings/Analytics/Settings views
+- Upgrade button, Logout
 
-### Backend
-- All CRUD: leads, outreach, inbox, meetings, automation, optimizer
-- Login (email → {email, orgId, plan})
-- POST /api/subscribe (plan: starter/growth/lifetime, ref tracking)
-- POST /api/generate-email (AI), POST /api/classify-reply (AI)
-- Success page with Stripe status polling
-- 27/27 tests passing
+### Backend (27 tests passing)
+- All CRUD, Auth, Stripe, OpenAI, Onboarding
+
+## Documents Created
+- `/app/DEPLOYMENT_GUIDE.md` — Complete step-by-step deploy guide
+- `/app/AUTOMATION_ROADMAP.md` — Global AI automation vision (57 countries)
 
 ## MOCKED
 - Resend email sending
 - Gmail inbox reading
 
-## Backlog
-### P1
-- Resend integration, Gmail API, Calendly API
-- Upload demo video (VSL) to video section
-- ClickBank vendor account setup + webhook
-
-### P2
-- JWT auth, campaign management, Recharts, multi-tenant
-- Plan upgrade webhook (Stripe → update user.plan)
-- Email scheduling & rate limiting
+## Immediate Next Steps
+1. Deploy (follow DEPLOYMENT_GUIDE.md)
+2. Get Resend API key → real emails
+3. Record demo video → embed in landing page
+4. Send first 100 cold messages
+5. Set up ClickBank affiliate program

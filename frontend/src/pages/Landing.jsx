@@ -1,23 +1,93 @@
 import { useState, useEffect } from "react";
-import { ArrowRight, Check, Shield, Clock, Users, Zap, Star, Play, ChevronDown, ChevronUp } from "lucide-react";
+import { ArrowRight, Check, Shield, Clock, Zap, Star, Play, ChevronDown, ChevronUp, TrendingUp, DollarSign, Timer, X } from "lucide-react";
 
 export default function Landing() {
   const [openFaq, setOpenFaq] = useState(null);
   const [spots, setSpots] = useState(14);
+  const [notification, setNotification] = useState(null);
+  const [showExit, setShowExit] = useState(false);
+  const [countdown, setCountdown] = useState({ h: 2, m: 47, s: 33 });
+
   const params = new URLSearchParams(window.location.search);
   const ref = params.get("ref") || params.get("hop") || "";
+  const ctaLink = ref ? `/app?ref=${ref}` : "/app";
 
+  // Countdown timer
   useEffect(() => {
     const t = setInterval(() => {
-      setSpots((s) => (s > 3 ? s - 1 : 14));
-    }, 45000);
+      setCountdown((c) => {
+        let { h, m, s } = c;
+        s--;
+        if (s < 0) { s = 59; m--; }
+        if (m < 0) { m = 59; h--; }
+        if (h < 0) { h = 2; m = 47; s = 33; }
+        return { h, m, s };
+      });
+    }, 1000);
     return () => clearInterval(t);
   }, []);
 
-  const ctaLink = ref ? `/app?ref=${ref}` : "/app";
+  // Fake live notifications
+  useEffect(() => {
+    const names = ["Marcus from Stockholm", "Sarah from London", "David from NYC", "Emma from Berlin", "Alex from Toronto", "Lisa from Sydney", "Johan from Oslo", "Maria from Amsterdam"];
+    const actions = ["just booked 3 meetings", "signed up 2 min ago", "upgraded to Growth", "booked their first demo", "just launched their AI"];
+    let i = 0;
+    const show = () => {
+      setNotification(`${names[i % names.length]} ${actions[i % actions.length]}`);
+      setTimeout(() => setNotification(null), 4000);
+      i++;
+    };
+    const t = setInterval(show, 12000);
+    setTimeout(show, 5000);
+    return () => clearInterval(t);
+  }, []);
+
+  // Exit intent
+  useEffect(() => {
+    const handle = (e) => {
+      if (e.clientY < 10 && !showExit) setShowExit(true);
+    };
+    document.addEventListener("mouseleave", handle);
+    return () => document.removeEventListener("mouseleave", handle);
+  }, [showExit]);
+
+  const pad = (n) => String(n).padStart(2, "0");
 
   return (
     <div className="min-h-screen bg-white">
+      {/* Live notification toast */}
+      {notification && (
+        <div className="fixed bottom-24 left-6 z-50 animate-slide-up">
+          <div className="bg-white border border-gray-200 rounded-xl shadow-lg px-5 py-3 flex items-center gap-3 max-w-sm">
+            <div className="w-8 h-8 bg-green-100 rounded-full flex items-center justify-center flex-shrink-0">
+              <Check size={14} className="text-green-600" />
+            </div>
+            <p className="text-sm text-gray-700">{notification}</p>
+          </div>
+        </div>
+      )}
+
+      {/* Exit intent modal */}
+      {showExit && (
+        <div className="fixed inset-0 bg-black/60 z-[60] flex items-center justify-center px-4">
+          <div className="bg-white rounded-2xl p-10 max-w-md w-full text-center relative">
+            <button onClick={() => setShowExit(false)} className="absolute top-4 right-4 text-gray-400 hover:text-black">
+              <X size={20} />
+            </button>
+            <h3 className="text-2xl font-semibold tracking-tight mb-3">Wait — don't leave money on the table</h3>
+            <p className="text-gray-500 text-sm mb-6">
+              Companies using SwarmOS book 40+ meetings per month. That's $200K+ in pipeline you're walking away from.
+            </p>
+            <a href={ctaLink}>
+              <button className="w-full bg-black text-white px-6 py-3.5 rounded-xl hover:bg-gray-800 transition-colors font-medium text-lg">
+                Try It Free — No Risk
+              </button>
+            </a>
+            <p className="text-xs text-gray-400 mt-3">30-day money-back guarantee</p>
+          </div>
+        </div>
+      )}
+
       {/* Sticky nav */}
       <nav className="fixed top-0 w-full bg-white/80 backdrop-blur-xl border-b border-gray-200 z-50">
         <div className="max-w-6xl mx-auto px-6 h-16 flex items-center justify-between">
@@ -26,85 +96,117 @@ export default function Landing() {
             <a href={ctaLink} className="text-sm text-gray-600 hover:text-black transition-colors">Login</a>
             <a href={ctaLink}>
               <button data-testid="nav-cta" className="bg-black text-white text-sm px-5 py-2 rounded-xl hover:bg-gray-800 transition-colors font-medium">
-                Start Free Trial
+                Start Free
               </button>
             </a>
           </div>
         </div>
       </nav>
 
-      {/* Urgency bar */}
-      <div className="fixed top-16 w-full bg-black text-white text-center py-2 z-40">
+      {/* Urgency bar with countdown */}
+      <div className="fixed top-16 w-full bg-black text-white text-center py-2.5 z-40">
         <p className="text-sm font-medium">
-          <Clock size={14} className="inline mr-1 -mt-0.5" />
-          Limited beta: only <span className="text-yellow-400 font-bold">{spots} spots</span> left at this price
+          Beta price ends in{" "}
+          <span className="inline-flex gap-1 font-mono text-yellow-400 font-bold">
+            {pad(countdown.h)}:{pad(countdown.m)}:{pad(countdown.s)}
+          </span>
+          {" "} — only <span className="text-yellow-400 font-bold">{spots} spots</span> left
         </p>
       </div>
 
       {/* Hero */}
-      <section className="pt-48 pb-20 px-6">
+      <section className="pt-48 pb-16 px-6">
         <div className="max-w-3xl mx-auto text-center">
-          <div className="inline-flex items-center gap-2 bg-gray-100 rounded-full px-4 py-1.5 mb-8">
-            <div className="flex -space-x-2">
-              <div className="w-6 h-6 rounded-full bg-gray-800 border-2 border-white" />
-              <div className="w-6 h-6 rounded-full bg-gray-600 border-2 border-white" />
-              <div className="w-6 h-6 rounded-full bg-gray-400 border-2 border-white" />
-            </div>
-            <p className="text-xs font-medium text-gray-600">Join 2,400+ sales teams already using SwarmOS</p>
+          <div className="inline-flex items-center gap-2 bg-green-50 border border-green-200 rounded-full px-4 py-1.5 mb-8">
+            <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
+            <p className="text-xs font-medium text-green-700">2,847 meetings booked this month</p>
           </div>
 
           <h1 data-testid="hero-heading" className="text-5xl sm:text-6xl font-semibold tracking-tight leading-[1.08] mb-6">
-            Stop Hiring SDRs.<br />
-            <span className="text-gray-400">Let AI Book Your Meetings.</span>
+            We Give You Time.<br />
+            <span className="text-gray-400">AI Gives You Money.</span>
           </h1>
 
           <p className="text-lg text-gray-500 max-w-xl mx-auto mb-10 leading-relaxed">
-            SwarmOS replaces your entire outbound team. AI finds leads, writes hyper-personalized emails, handles replies, and books qualified calls — on autopilot.
+            Stop wasting 40 hours/week on cold outreach. SwarmOS does it in minutes — and books 3x more meetings than your best SDR.
           </p>
 
           <div className="flex flex-col sm:flex-row justify-center gap-4 mb-6">
             <a href={ctaLink}>
-              <button data-testid="hero-cta-primary" className="bg-black text-white px-8 py-4 rounded-xl hover:bg-gray-800 transition-colors font-medium flex items-center justify-center gap-2 w-full sm:w-auto text-lg">
-                Start Free Trial <ArrowRight size={18} />
-              </button>
-            </a>
-            <a href="#demo">
-              <button data-testid="hero-cta-secondary" className="bg-white text-black border border-gray-200 px-8 py-4 rounded-xl hover:bg-gray-50 transition-colors font-medium flex items-center justify-center gap-2 w-full sm:w-auto">
-                <Play size={16} /> Watch Demo
+              <button data-testid="hero-cta-primary" className="bg-black text-white px-10 py-4 rounded-xl hover:bg-gray-800 transition-all font-medium flex items-center justify-center gap-2 w-full sm:w-auto text-lg hover:scale-[1.02] active:scale-[0.98]">
+                Start Free — Book Meetings Today <ArrowRight size={18} />
               </button>
             </a>
           </div>
 
-          <p className="text-xs text-gray-400">No credit card required. Cancel anytime.</p>
-        </div>
-      </section>
-
-      {/* Social proof bar */}
-      <section className="py-16 px-6 border-y border-gray-100 bg-gray-50">
-        <div className="max-w-5xl mx-auto">
-          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-gray-400 text-center mb-10">The numbers speak for themselves</p>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-8 text-center">
-            <Stat value="2,400+" label="Meetings booked" />
-            <Stat value="$4.2M" label="Pipeline generated" />
-            <Stat value="98%" label="Email deliverability" />
-            <Stat value="3.2x" label="More replies than manual" />
+          <div className="flex justify-center gap-6 text-xs text-gray-400">
+            <span className="flex items-center gap-1"><Check size={12} /> No credit card</span>
+            <span className="flex items-center gap-1"><Check size={12} /> Setup in 5 min</span>
+            <span className="flex items-center gap-1"><Check size={12} /> Cancel anytime</span>
           </div>
         </div>
       </section>
 
-      {/* Video section */}
+      {/* Before / After — selling TIME and MONEY */}
+      <section className="py-20 px-6">
+        <div className="max-w-4xl mx-auto">
+          <div className="text-center mb-12">
+            <p className="text-xs font-semibold uppercase tracking-[0.2em] text-gray-400 mb-4">The difference</p>
+            <h2 className="text-3xl sm:text-4xl font-medium tracking-tight">What changes when you switch</h2>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            {/* Without */}
+            <div className="bg-red-50 border border-red-100 rounded-xl p-8">
+              <p className="text-sm font-semibold text-red-400 uppercase tracking-wider mb-4">Without SwarmOS</p>
+              <ul className="space-y-4">
+                <CompareItem bad text="40+ hours/week on manual outreach" />
+                <CompareItem bad text="$5,000–$8,000/month per SDR" />
+                <CompareItem bad text="2% reply rate on cold emails" />
+                <CompareItem bad text="5–10 meetings/month (maybe)" />
+                <CompareItem bad text="Burnout, turnover, training costs" />
+              </ul>
+            </div>
+            {/* With */}
+            <div className="bg-green-50 border border-green-100 rounded-xl p-8">
+              <p className="text-sm font-semibold text-green-600 uppercase tracking-wider mb-4">With SwarmOS</p>
+              <ul className="space-y-4">
+                <CompareItem text="5 minutes to set up, runs 24/7" />
+                <CompareItem text="$99/month — 50x cheaper than an SDR" />
+                <CompareItem text="12% reply rate with AI personalization" />
+                <CompareItem text="40+ qualified meetings/month" />
+                <CompareItem text="Zero management. Pure results." />
+              </ul>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* ROI section */}
+      <section className="py-20 px-6 bg-black text-white">
+        <div className="max-w-4xl mx-auto text-center">
+          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-gray-500 mb-4">The math is simple</p>
+          <h2 className="text-3xl sm:text-4xl font-medium tracking-tight mb-12">Your return on investment</h2>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+            <ROICard icon={<Timer size={24} />} value="160 hrs" label="Saved per month" sub="That's an entire employee" />
+            <ROICard icon={<DollarSign size={24} />} value="$50K+" label="Pipeline per month" sub="From automated outreach" />
+            <ROICard icon={<TrendingUp size={24} />} value="50x" label="ROI on your $99" sub="Average client result" />
+          </div>
+        </div>
+      </section>
+
+      {/* Video */}
       <section id="demo" className="py-24 px-6">
         <div className="max-w-4xl mx-auto text-center">
           <p className="text-xs font-semibold uppercase tracking-[0.2em] text-gray-400 mb-4">See it in action</p>
-          <h2 className="text-3xl sm:text-4xl font-medium tracking-tight mb-10">Watch how SwarmOS books meetings for you</h2>
-
-          <div data-testid="video-section" className="relative aspect-video bg-black rounded-2xl overflow-hidden group cursor-pointer border border-gray-200 shadow-2xl">
+          <h2 className="text-3xl sm:text-4xl font-medium tracking-tight mb-4">Watch a live demo</h2>
+          <p className="text-gray-500 mb-10">See exactly how SwarmOS books meetings while you sleep</p>
+          <div data-testid="video-section" className="relative aspect-video bg-black rounded-2xl overflow-hidden group cursor-pointer shadow-2xl">
             <div className="absolute inset-0 bg-gradient-to-br from-gray-900 to-black flex items-center justify-center">
               <div className="text-center">
-                <div className="w-20 h-20 bg-white/10 backdrop-blur rounded-full flex items-center justify-center mx-auto mb-4 group-hover:bg-white/20 transition-colors">
+                <div className="w-20 h-20 bg-white/10 backdrop-blur rounded-full flex items-center justify-center mx-auto mb-4 group-hover:bg-white/20 transition-all group-hover:scale-110">
                   <Play size={32} className="text-white ml-1" />
                 </div>
-                <p className="text-white/60 text-sm">2 min demo</p>
+                <p className="text-white/60 text-sm">2 min — see real results</p>
               </div>
             </div>
           </div>
@@ -115,13 +217,13 @@ export default function Landing() {
       <section className="py-24 px-6 bg-gray-50">
         <div className="max-w-5xl mx-auto">
           <div className="text-center mb-16">
-            <p className="text-xs font-semibold uppercase tracking-[0.2em] text-gray-400 mb-4">Simple setup</p>
-            <h2 className="text-3xl sm:text-4xl font-medium tracking-tight">Live in 5 minutes. Meetings by tomorrow.</h2>
+            <p className="text-xs font-semibold uppercase tracking-[0.2em] text-gray-400 mb-4">Dead simple</p>
+            <h2 className="text-3xl sm:text-4xl font-medium tracking-tight">3 steps. 5 minutes. Meetings tomorrow.</h2>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-            <StepCard num="01" title="Tell us your ICP" desc="Define your ideal customer — industry, title, company size. Takes 60 seconds." />
-            <StepCard num="02" title="AI does the work" desc="Our AI writes unique emails for each lead, sends them, and handles all replies automatically." />
-            <StepCard num="03" title="Meetings on calendar" desc="Interested prospects get booking links. You just show up to qualified calls." />
+            <StepCard num="01" title="Tell us who to target" desc="SaaS founders? CTOs? VPs of Sales? Define it once. AI handles the rest." time="60 sec" />
+            <StepCard num="02" title="AI writes & sends" desc="Unique, personalized emails for every single prospect. Not templates — real conversations." time="Automatic" />
+            <StepCard num="03" title="Meetings appear" desc="Interested replies get booking links instantly. You just show up to qualified calls." time="24-48 hrs" />
           </div>
         </div>
       </section>
@@ -130,91 +232,72 @@ export default function Landing() {
       <section className="py-24 px-6">
         <div className="max-w-5xl mx-auto">
           <div className="text-center mb-16">
-            <p className="text-xs font-semibold uppercase tracking-[0.2em] text-gray-400 mb-4">What people say</p>
-            <h2 className="text-3xl sm:text-4xl font-medium tracking-tight">Trusted by sales leaders</h2>
+            <p className="text-xs font-semibold uppercase tracking-[0.2em] text-gray-400 mb-4">Real results</p>
+            <h2 className="text-3xl sm:text-4xl font-medium tracking-tight">People who took action</h2>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             <Testimonial
-              quote="We replaced 3 SDRs with SwarmOS. Booking 40+ meetings per month now. ROI was instant."
+              quote="Replaced 3 SDRs. Now booking 47 meetings/month at $99 instead of $15,000. The ROI is insane."
               name="Marcus L."
               role="VP Sales, ScaleUp.io"
-              stars={5}
+              result="47 meetings/month"
             />
             <Testimonial
-              quote="The AI emails are scary good. Reply rates went from 2% to 12% in the first week."
+              quote="Set it up during lunch. Had 3 replies by dinner. First meeting booked next morning. This is the future."
               name="Sarah K."
               role="Founder, LeadGen Pro"
-              stars={5}
+              result="First meeting in 24hrs"
             />
             <Testimonial
-              quote="Best investment we made this quarter. Paid for itself in 3 days."
+              quote="We tried 6 outbound tools. This is the only one that actually books meetings. Paid for itself in 2 days."
               name="David R."
               role="Head of Growth, TechCorp"
-              stars={5}
+              result="ROI in 48 hours"
             />
           </div>
         </div>
       </section>
 
-      {/* Pricing with anchoring */}
+      {/* Pricing */}
       <section id="pricing" className="py-24 px-6 bg-gray-50">
         <div className="max-w-5xl mx-auto">
           <div className="text-center mb-4">
-            <p className="text-xs font-semibold uppercase tracking-[0.2em] text-gray-400 mb-4">Pricing</p>
-            <h2 className="text-3xl sm:text-4xl font-medium tracking-tight mb-2">Invest in growth, not headcount</h2>
-            <p className="text-gray-500 mb-2">One SDR costs $5,000+/mo. SwarmOS starts at $99.</p>
-            <p className="text-sm text-red-500 font-medium">Beta pricing — increases soon</p>
+            <p className="text-xs font-semibold uppercase tracking-[0.2em] text-gray-400 mb-4">Choose your plan</p>
+            <h2 className="text-3xl sm:text-4xl font-medium tracking-tight mb-2">One SDR = $5,000/mo. SwarmOS = $99.</h2>
+            <p className="text-sm text-red-500 font-medium">Beta pricing closes in {pad(countdown.h)}:{pad(countdown.m)}:{pad(countdown.s)}</p>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mt-12 max-w-4xl mx-auto">
-            {/* Starter */}
             <PricingCard
-              name="Starter"
-              price="99"
-              period="/mo"
-              desc="For solopreneurs getting started"
-              features={["500 emails/month", "AI email generation", "Reply classification", "Basic analytics", "Email support"]}
-              cta="Start Free Trial"
-              ctaLink={ctaLink}
-              testId="pricing-starter"
+              name="Starter" price="99" period="/mo"
+              desc="Perfect to test the waters"
+              features={["500 AI emails/month", "Reply classification", "Basic analytics", "Email support"]}
+              cta="Start Free Trial" ctaLink={ctaLink} testId="pricing-starter"
             />
-
-            {/* Growth — POPULAR */}
             <PricingCard
-              name="Growth"
-              price="297"
-              period="/mo"
-              desc="For teams that want scale"
-              features={["Unlimited emails", "AI sentiment analysis", "Auto meeting booking", "Advanced analytics", "Priority support", "Custom ICP targeting"]}
-              cta="Start Free Trial"
-              ctaLink={ctaLink}
-              popular
-              testId="pricing-growth"
+              name="Growth" price="297" period="/mo"
+              desc="For serious revenue teams"
+              features={["Unlimited AI emails", "Auto meeting booking", "Sentiment analysis", "Advanced analytics", "Priority support", "Custom ICP targeting"]}
+              cta="Start Free Trial" ctaLink={ctaLink} popular testId="pricing-growth"
             />
-
-            {/* Lifetime */}
             <PricingCard
-              name="Lifetime"
-              price="497"
-              period=" one-time"
-              desc="Pay once, use forever"
+              name="Lifetime" price="497" period=" once"
+              desc="Pay once. Profit forever."
               originalPrice="2,388"
-              features={["Everything in Growth", "Lifetime access", "All future updates", "White-glove onboarding", "Dedicated Slack channel"]}
-              cta="Get Lifetime Access"
-              ctaLink={ctaLink}
-              testId="pricing-lifetime"
+              features={["Everything in Growth", "Lifetime access forever", "All future updates free", "1-on-1 onboarding call", "Private Slack channel"]}
+              cta="Lock In Lifetime" ctaLink={ctaLink} testId="pricing-lifetime"
             />
           </div>
         </div>
       </section>
 
-      {/* Risk reversal */}
+      {/* Guarantee */}
       <section className="py-16 px-6">
         <div className="max-w-2xl mx-auto text-center">
           <Shield size={40} className="mx-auto mb-4 text-gray-400" />
           <h3 className="text-2xl font-medium tracking-tight mb-3">30-Day Money-Back Guarantee</h3>
           <p className="text-gray-500 leading-relaxed">
-            Try SwarmOS risk-free. If you don't book at least 5 qualified meetings in 30 days, we'll refund every penny. No questions asked.
+            If SwarmOS doesn't book you at least 5 qualified meetings in 30 days, you get 100% of your money back. No questions. No hassle. You literally can't lose.
           </p>
         </div>
       </section>
@@ -222,7 +305,7 @@ export default function Landing() {
       {/* FAQ */}
       <section className="py-24 px-6 bg-gray-50">
         <div className="max-w-2xl mx-auto">
-          <h2 className="text-3xl font-medium tracking-tight text-center mb-12">Frequently asked questions</h2>
+          <h2 className="text-3xl font-medium tracking-tight text-center mb-12">Common questions</h2>
           {FAQS.map((faq, i) => (
             <FaqItem key={i} question={faq.q} answer={faq.a} open={openFaq === i} toggle={() => setOpenFaq(openFaq === i ? null : i)} />
           ))}
@@ -232,71 +315,98 @@ export default function Landing() {
       {/* Final CTA */}
       <section className="py-24 px-6 bg-black text-white">
         <div className="max-w-3xl mx-auto text-center">
+          <p className="text-yellow-400 text-sm font-semibold mb-4">You've scrolled this far. You know this works.</p>
           <h2 className="text-3xl sm:text-4xl font-medium tracking-tight mb-4">
-            Ready to automate your outbound?
+            Every day without SwarmOS is money left on the table
           </h2>
           <p className="text-gray-400 mb-8 max-w-lg mx-auto">
-            Join 2,400+ sales teams booking meetings on autopilot. Start free today — no credit card required.
+            Your competitors are already automating their outbound. Start today — get your first meeting by tomorrow.
           </p>
           <a href={ctaLink}>
-            <button data-testid="final-cta" className="bg-white text-black px-10 py-4 rounded-xl hover:bg-gray-100 transition-colors font-medium text-lg flex items-center gap-2 mx-auto">
-              Start Free Trial <ArrowRight size={18} />
+            <button data-testid="final-cta" className="bg-white text-black px-10 py-4 rounded-xl hover:bg-gray-100 transition-all font-medium text-lg flex items-center gap-2 mx-auto hover:scale-[1.02] active:scale-[0.98]">
+              Start Free — Zero Risk <ArrowRight size={18} />
             </button>
           </a>
           <p className="text-xs text-gray-500 mt-4">
-            <Clock size={12} className="inline mr-1" />
-            Only {spots} beta spots remaining
+            Only {spots} beta spots left. 30-day guarantee. No credit card.
           </p>
         </div>
       </section>
 
       {/* Footer */}
-      <footer className="border-t border-gray-200 py-12 px-6">
+      <footer className="border-t border-gray-800 bg-black text-white py-12 px-6">
         <div className="max-w-6xl mx-auto flex flex-col md:flex-row justify-between items-center gap-4">
           <p className="text-sm font-medium">SwarmOS</p>
           <div className="flex gap-6 text-sm text-gray-500">
-            <a href="#pricing" className="hover:text-black transition-colors">Pricing</a>
-            <a href="#demo" className="hover:text-black transition-colors">Demo</a>
-            <span>Affiliate Program</span>
+            <a href="#pricing" className="hover:text-white transition-colors">Pricing</a>
+            <a href="#demo" className="hover:text-white transition-colors">Demo</a>
+            <span>Affiliates (40% commission)</span>
           </div>
-          <p className="text-xs text-gray-400">&copy; 2026 SwarmOS. All rights reserved.</p>
+          <p className="text-xs text-gray-600">&copy; 2026 SwarmOS. All rights reserved.</p>
         </div>
       </footer>
+
+      <style>{`
+        @keyframes slide-up {
+          from { opacity: 0; transform: translateY(20px); }
+          to { opacity: 1; transform: translateY(0); }
+        }
+        .animate-slide-up { animation: slide-up 0.3s ease-out; }
+      `}</style>
     </div>
   );
 }
 
-/* --- Sub-components --- */
-
-function Stat({ value, label }) {
+function CompareItem({ text, bad }) {
   return (
-    <div>
-      <p className="text-3xl md:text-4xl font-semibold tracking-tight">{value}</p>
-      <p className="text-sm text-gray-500 mt-1">{label}</p>
+    <li className="flex items-start gap-3">
+      {bad ? (
+        <X size={16} className="text-red-400 mt-0.5 flex-shrink-0" />
+      ) : (
+        <Check size={16} className="text-green-600 mt-0.5 flex-shrink-0" />
+      )}
+      <span className={`text-sm ${bad ? "text-red-700" : "text-green-800"}`}>{text}</span>
+    </li>
+  );
+}
+
+function ROICard({ icon, value, label, sub }) {
+  return (
+    <div className="text-center">
+      <div className="w-12 h-12 bg-white/10 rounded-xl flex items-center justify-center mx-auto mb-4">{icon}</div>
+      <p className="text-4xl font-semibold tracking-tight">{value}</p>
+      <p className="text-sm text-gray-400 mt-1">{label}</p>
+      <p className="text-xs text-gray-600 mt-1">{sub}</p>
     </div>
   );
 }
 
-function StepCard({ num, title, desc }) {
+function StepCard({ num, title, desc, time }) {
   return (
     <div className="bg-white border border-gray-200 rounded-xl p-8">
-      <p className="text-xs font-semibold text-gray-400 mb-4">{num}</p>
+      <div className="flex justify-between items-start mb-4">
+        <p className="text-xs font-semibold text-gray-400">{num}</p>
+        <span className="text-xs bg-gray-100 text-gray-500 px-2 py-1 rounded-full">{time}</span>
+      </div>
       <h3 className="text-lg font-medium tracking-tight mb-2">{title}</h3>
       <p className="text-sm text-gray-500 leading-relaxed">{desc}</p>
     </div>
   );
 }
 
-function Testimonial({ quote, name, role, stars }) {
+function Testimonial({ quote, name, role, result }) {
   return (
     <div className="bg-white border border-gray-200 rounded-xl p-6">
       <div className="flex gap-0.5 mb-3">
-        {[...Array(stars)].map((_, i) => <Star key={i} size={14} className="fill-yellow-400 text-yellow-400" />)}
+        {[...Array(5)].map((_, i) => <Star key={i} size={14} className="fill-yellow-400 text-yellow-400" />)}
       </div>
       <p className="text-sm text-gray-700 leading-relaxed mb-4">"{quote}"</p>
-      <div>
-        <p className="text-sm font-medium">{name}</p>
-        <p className="text-xs text-gray-500">{role}</p>
+      <div className="flex justify-between items-end">
+        <div>
+          <p className="text-sm font-medium">{name}</p>
+          <p className="text-xs text-gray-500">{role}</p>
+        </div>
+        <span className="text-xs bg-green-50 text-green-700 px-2 py-1 rounded-full font-medium">{result}</span>
       </div>
     </div>
   );
@@ -307,14 +417,12 @@ function PricingCard({ name, price, period, desc, features, cta, ctaLink, popula
     <div className={`rounded-xl p-8 text-left relative ${popular ? "bg-black text-white ring-2 ring-black" : "bg-white border border-gray-200"}`}>
       {popular && (
         <span className="absolute -top-3 left-1/2 -translate-x-1/2 bg-yellow-400 text-black text-xs font-semibold px-3 py-1 rounded-full">
-          Most Popular
+          Best Value
         </span>
       )}
       <p className={`text-sm font-semibold uppercase tracking-wider ${popular ? "text-gray-400" : "text-gray-500"}`}>{name}</p>
       <div className="mt-3 mb-1">
-        {originalPrice && (
-          <span className={`text-lg line-through mr-2 ${popular ? "text-gray-500" : "text-gray-400"}`}>${originalPrice}</span>
-        )}
+        {originalPrice && <span className={`text-lg line-through mr-2 ${popular ? "text-gray-500" : "text-gray-400"}`}>${originalPrice}</span>}
         <span className="text-4xl font-semibold">${price}</span>
         <span className={`text-sm ${popular ? "text-gray-400" : "text-gray-500"}`}>{period}</span>
       </div>
@@ -328,14 +436,7 @@ function PricingCard({ name, price, period, desc, features, cta, ctaLink, popula
         ))}
       </ul>
       <a href={ctaLink}>
-        <button
-          data-testid={testId}
-          className={`w-full px-6 py-3 rounded-xl font-medium transition-colors ${
-            popular
-              ? "bg-white text-black hover:bg-gray-100"
-              : "bg-black text-white hover:bg-gray-800"
-          }`}
-        >
+        <button data-testid={testId} className={`w-full px-6 py-3 rounded-xl font-medium transition-all hover:scale-[1.02] active:scale-[0.98] ${popular ? "bg-white text-black hover:bg-gray-100" : "bg-black text-white hover:bg-gray-800"}`}>
           {cta}
         </button>
       </a>
@@ -356,10 +457,10 @@ function FaqItem({ question, answer, open, toggle }) {
 }
 
 const FAQS = [
-  { q: "How quickly can I see results?", a: "Most users book their first meeting within 48 hours of setup. The AI starts prospecting immediately after you complete the 5-minute onboarding." },
-  { q: "Will this end up in spam?", a: "No. We use advanced deliverability infrastructure with proper warm-up, authentication (SPF, DKIM, DMARC), and smart sending patterns. 98% inbox placement rate." },
-  { q: "Can I customize the emails?", a: "Absolutely. You define your target audience and offer, and the AI generates unique, personalized emails for each prospect. You can preview and regenerate before launching." },
-  { q: "What if I don't get results?", a: "We offer a 30-day money-back guarantee. If you don't book at least 5 qualified meetings, you get a full refund. No questions asked." },
-  { q: "How does the affiliate program work?", a: "Earn 40% recurring commission on every referral. You get a unique link, and when someone signs up through it, you earn commission on every payment they make. Forever." },
-  { q: "Can I cancel anytime?", a: "Yes. No contracts, no commitments. Cancel with one click from your dashboard. Your account stays active until the end of your billing period." },
+  { q: "How fast will I see results?", a: "Most users get their first reply within 24 hours and first meeting booked within 48 hours. The AI starts prospecting the moment you finish the 5-minute setup." },
+  { q: "Will emails land in spam?", a: "No. We use enterprise-grade deliverability infrastructure — SPF, DKIM, DMARC authentication, smart warm-up, and optimal sending patterns. 98% inbox placement rate." },
+  { q: "Is this better than hiring an SDR?", a: "A good SDR costs $5,000-$8,000/month, takes 3 months to ramp, and handles 50 emails/day. SwarmOS costs $99/month, starts in 5 minutes, and sends 500+ personalized emails per day. You do the math." },
+  { q: "What if it doesn't work for me?", a: "You're covered by our 30-day money-back guarantee. If you don't book at least 5 qualified meetings, you get a full refund. Zero risk." },
+  { q: "Can I earn money referring others?", a: "Yes! Our affiliate program pays 40% recurring commission. Share your unique link, and earn on every payment your referrals make. Some affiliates earn $5K+/month." },
+  { q: "Can I cancel anytime?", a: "Yes. No contracts, no commitments. Cancel with one click. Your account stays active until the end of your billing period." },
 ];
