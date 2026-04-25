@@ -63,7 +63,9 @@ class OnboardingData(BaseModel):
     volume: Optional[str] = None
 
 class GenerateEmailRequest(BaseModel):
-    leadId: str
+    leadId: Optional[str] = None
+    target: Optional[str] = None
+    offer: Optional[str] = None
 
 # ---------- Seed data ----------
 async def seed_database():
@@ -346,24 +348,28 @@ async def get_onboarding(email: str):
 # ---------- AI Email Generation ----------
 @api_router.post("/generate-email")
 async def generate_email(req: GenerateEmailRequest):
-    lead = await db.leads.find_one({"id": req.leadId}, {"_id": 0})
-    if not lead:
-        return {"success": False, "error": "Lead not found"}
-
     llm_key = os.environ.get("EMERGENT_LLM_KEY")
     chat = LlmChat(
         api_key=llm_key,
-        session_id=f"email-gen-{req.leadId}",
-        system_message="You are an expert cold email copywriter for B2B SaaS sales. Write short, personalized, high-converting cold emails. No fluff. Max 4 sentences."
+        session_id=f"email-gen-{datetime.now(timezone.utc).timestamp()}",
+        system_message="You are an expert cold email copywriter for B2B SaaS sales. Write short, personalized, high-converting cold emails. No fluff. Max 4 sentences. No subject line. Just the email body."
     )
     chat.with_model("openai", "gpt-4o")
 
-    msg = UserMessage(
-        text=f"Write a cold email to {lead.get('firstName', 'there')} at {lead.get('company', 'their company')}. We help companies book more meetings automatically using AI. Keep it casual and direct."
-    )
+    if req.leadId:
+        lead = await db.leads.find_one({"id": req.leadId}, {"_id": 0})
+        if not lead:
+            return {"success": False, "error": "Lead not found"}
+        prompt = f"Write a cold email to {lead.get('firstName', 'there')} at {lead.get('company', 'their company')}. We help companies book more meetings automatically using AI. Keep it casual and direct."
+    else:
+        target = req.target or "decision makers"
+        offer = req.offer or "AI-powered meeting booking"
+        prompt = f"Write a cold email targeting {target}. Our offer: {offer}. Make it feel personal like you researched them. Use a placeholder name like [First Name] and company like [Company]. Keep it casual and direct."
+
+    msg = UserMessage(text=prompt)
     response = await chat.send_message(msg)
 
-    return {"success": True, "content": response, "lead": lead}
+    return {"success": True, "content": response}
 
 # ---------- AI Sentiment Classification ----------
 @api_router.post("/classify-reply")

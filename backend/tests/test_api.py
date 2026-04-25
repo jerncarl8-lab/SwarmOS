@@ -338,10 +338,10 @@ class TestOnboarding:
 
 
 class TestGenerateEmail:
-    """AI Email Generation endpoint tests - NEW (OpenAI integration)"""
+    """AI Email Generation endpoint tests - OpenAI GPT-4o integration"""
     
     def test_generate_email_for_lead(self):
-        """POST /api/generate-email - generates AI email for a lead"""
+        """POST /api/generate-email - generates AI email for a lead by leadId"""
         # Get a lead first
         leads_response = requests.get(f"{BASE_URL}/api/leads")
         leads = leads_response.json()["data"]
@@ -353,12 +353,28 @@ class TestGenerateEmail:
         assert "success" in data
         assert data["success"] == True
         assert "content" in data
-        assert "lead" in data
         
         # Verify content is a non-empty string (AI generated)
         assert isinstance(data["content"], str)
         assert len(data["content"]) > 50  # Should be a reasonable email
-        print(f"Generate email passed: {data['content'][:100]}...")
+        print(f"Generate email for lead passed: {data['content'][:100]}...")
+    
+    def test_generate_email_with_target_offer(self):
+        """POST /api/generate-email - generates AI email with target/offer (for onboarding preview)"""
+        response = requests.post(f"{BASE_URL}/api/generate-email", json={
+            "target": "SaaS founders and CTOs",
+            "offer": "AI-powered meeting booking that saves 10 hours per week"
+        })
+        assert response.status_code == 200
+        data = response.json()
+        assert "success" in data
+        assert data["success"] == True
+        assert "content" in data
+        
+        # Verify content is a non-empty string (AI generated)
+        assert isinstance(data["content"], str)
+        assert len(data["content"]) > 50  # Should be a reasonable email
+        print(f"Generate email with target/offer passed: {data['content'][:100]}...")
     
     def test_generate_email_invalid_lead(self):
         """POST /api/generate-email - returns error for invalid leadId"""
@@ -370,8 +386,27 @@ class TestGenerateEmail:
         print(f"Invalid lead email generation handled correctly: {data}")
 
 
+class TestClassifyReply:
+    """AI Reply Classification endpoint tests - OpenAI GPT-4o integration"""
+    
+    def test_classify_reply_interested(self):
+        """POST /api/classify-reply - classifies interested reply"""
+        response = requests.post(f"{BASE_URL}/api/classify-reply", json={
+            "emailId": "test_email_1",
+            "fromEmail": "test@example.com",
+            "content": "Yes, I'd love to learn more! Can we schedule a call this week?"
+        })
+        assert response.status_code == 200
+        data = response.json()
+        assert "success" in data
+        assert data["success"] == True
+        assert "sentiment" in data
+        assert data["sentiment"] in ["interested", "not_interested", "needs_followup"]
+        print(f"Classify reply passed: sentiment={data['sentiment']}")
+
+
 class TestStripeSubscribe:
-    """Stripe Checkout endpoint tests - NEW"""
+    """Stripe Checkout endpoint tests"""
     
     def test_create_checkout_session(self):
         """POST /api/subscribe - creates Stripe checkout session"""
