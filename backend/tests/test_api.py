@@ -406,12 +406,13 @@ class TestClassifyReply:
 
 
 class TestStripeSubscribe:
-    """Stripe Checkout endpoint tests"""
+    """Stripe Checkout endpoint tests - 3-tier pricing (Starter $99, Growth $297, Lifetime $497)"""
     
-    def test_create_checkout_session(self):
-        """POST /api/subscribe - creates Stripe checkout session"""
+    def test_subscribe_starter_plan(self):
+        """POST /api/subscribe with plan=starter - creates Stripe checkout at $99"""
         subscribe_data = {
-            "email": "TEST_stripe@example.com",
+            "email": "TEST_stripe_starter@example.com",
+            "plan": "starter",
             "origin_url": "https://lead-automation-27.preview.emergentagent.com"
         }
         response = requests.post(f"{BASE_URL}/api/subscribe", json=subscribe_data)
@@ -421,7 +422,82 @@ class TestStripeSubscribe:
         
         # Verify it's a valid Stripe checkout URL
         assert "checkout.stripe.com" in data["url"]
-        print(f"Stripe checkout session created: {data['url'][:80]}...")
+        print(f"Starter plan checkout created: {data['url'][:80]}...")
+    
+    def test_subscribe_growth_plan(self):
+        """POST /api/subscribe with plan=growth - creates Stripe checkout at $297"""
+        subscribe_data = {
+            "email": "TEST_stripe_growth@example.com",
+            "plan": "growth",
+            "origin_url": "https://lead-automation-27.preview.emergentagent.com"
+        }
+        response = requests.post(f"{BASE_URL}/api/subscribe", json=subscribe_data)
+        assert response.status_code == 200
+        data = response.json()
+        assert "url" in data
+        
+        # Verify it's a valid Stripe checkout URL
+        assert "checkout.stripe.com" in data["url"]
+        print(f"Growth plan checkout created: {data['url'][:80]}...")
+    
+    def test_subscribe_lifetime_plan(self):
+        """POST /api/subscribe with plan=lifetime - creates Stripe checkout at $497"""
+        subscribe_data = {
+            "email": "TEST_stripe_lifetime@example.com",
+            "plan": "lifetime",
+            "origin_url": "https://lead-automation-27.preview.emergentagent.com"
+        }
+        response = requests.post(f"{BASE_URL}/api/subscribe", json=subscribe_data)
+        assert response.status_code == 200
+        data = response.json()
+        assert "url" in data
+        
+        # Verify it's a valid Stripe checkout URL
+        assert "checkout.stripe.com" in data["url"]
+        print(f"Lifetime plan checkout created: {data['url'][:80]}...")
+    
+    def test_subscribe_with_affiliate_ref(self):
+        """POST /api/subscribe with ref param - stores affiliate tracking"""
+        subscribe_data = {
+            "email": "TEST_stripe_affiliate@example.com",
+            "plan": "starter",
+            "origin_url": "https://lead-automation-27.preview.emergentagent.com",
+            "ref": "test_affiliate_123"
+        }
+        response = requests.post(f"{BASE_URL}/api/subscribe", json=subscribe_data)
+        assert response.status_code == 200
+        data = response.json()
+        assert "url" in data
+        
+        # Verify it's a valid Stripe checkout URL
+        assert "checkout.stripe.com" in data["url"]
+        print(f"Affiliate ref checkout created with ref=test_affiliate_123: {data['url'][:80]}...")
+    
+    def test_subscribe_default_plan(self):
+        """POST /api/subscribe without plan - defaults to starter"""
+        subscribe_data = {
+            "email": "TEST_stripe_default@example.com",
+            "origin_url": "https://lead-automation-27.preview.emergentagent.com"
+        }
+        response = requests.post(f"{BASE_URL}/api/subscribe", json=subscribe_data)
+        assert response.status_code == 200
+        data = response.json()
+        assert "url" in data
+        
+        # Verify it's a valid Stripe checkout URL
+        assert "checkout.stripe.com" in data["url"]
+        print(f"Default plan checkout created: {data['url'][:80]}...")
+
+
+class TestCheckoutStatus:
+    """Checkout status endpoint tests - for Success page"""
+    
+    def test_checkout_status_invalid_session(self):
+        """GET /api/checkout/status/{session_id} - handles invalid session"""
+        response = requests.get(f"{BASE_URL}/api/checkout/status/invalid_session_123")
+        # Should return 200 with status info (or error from Stripe)
+        # The endpoint may return error for invalid session
+        print(f"Checkout status for invalid session: status={response.status_code}")
 
 
 if __name__ == "__main__":

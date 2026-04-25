@@ -52,9 +52,18 @@ class MeetingCreate(BaseModel):
     leadId: str
     scheduledAt: Optional[str] = None
 
-class CheckoutRequest(BaseModel):
+# Plan pricing (server-side only)
+PLANS = {
+    "starter": {"name": "Starter", "amount": 99.00, "currency": "usd"},
+    "growth": {"name": "Growth", "amount": 297.00, "currency": "usd"},
+    "lifetime": {"name": "Lifetime", "amount": 497.00, "currency": "usd"},
+}
+
+class SubscribeRequest(BaseModel):
     email: str
+    plan: str = "starter"
     origin_url: str
+    ref: Optional[str] = None
 
 class OnboardingData(BaseModel):
     email: str
@@ -402,7 +411,8 @@ async def classify_reply(req: InboxProcessRequest):
 
 # ---------- Stripe Checkout ----------
 @api_router.post("/subscribe")
-async def subscribe(req: CheckoutRequest, http_request: Request):
+async def subscribe(req: SubscribeRequest, http_request: Request):
+    plan = PLANS.get(req.plan, PLANS["starter"])
     stripe_api_key = os.environ.get("STRIPE_API_KEY")
     host_url = str(http_request.base_url).rstrip("/")
     webhook_url = f"{host_url}/api/webhook/stripe"
@@ -412,19 +422,21 @@ async def subscribe(req: CheckoutRequest, http_request: Request):
     cancel_url = req.origin_url
 
     checkout_req = CheckoutSessionRequest(
-        amount=99.00,
-        currency="usd",
+        amount=plan["amount"],
+        currency=plan["currency"],
         success_url=success_url,
         cancel_url=cancel_url,
-        metadata={"email": req.email, "product": "AI SDR SaaS"}
+        metadata={"email": req.email, "plan": req.plan, "plan_name": plan["name"], "ref": req.ref or "direct"}
     )
     session = await stripe_checkout.create_checkout_session(checkout_req)
 
     txn = {
         "session_id": session.session_id,
         "email": req.email,
-        "amount": 99.00,
+        "plan": req.plan,
+        "amount": plan["amount"],
         "currency": "usd",
+        "ref": req.ref or "direct",
         "payment_status": "pending",
         "createdAt": datetime.now(timezone.utc).isoformat()
     }

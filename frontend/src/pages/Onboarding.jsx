@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import axios from "axios";
 import { Mail, Target, MessageSquare, BarChart3, ArrowRight, Sparkles, RefreshCw } from "lucide-react";
 
@@ -20,6 +20,8 @@ export default function Onboarding() {
   const [preview, setPreview] = useState("");
   const [generating, setGenerating] = useState(false);
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const ref = searchParams.get("ref") || "";
 
   const current = STEPS[step];
   const isPreview = step === 4;

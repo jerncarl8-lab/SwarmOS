@@ -24,10 +24,11 @@ export default function Dashboard() {
     navigate("/");
   };
 
-  const handleUpgrade = async () => {
+  const handleUpgrade = async (plan = "starter") => {
     try {
       const res = await axios.post(`${API}/api/subscribe`, {
         email: user.email,
+        plan,
         origin_url: window.location.origin,
       });
       window.location.href = res.data.url;
@@ -89,7 +90,7 @@ export default function Dashboard() {
             <p className="text-xs text-gray-500 mb-3">Unlimited emails & auto booking</p>
             <button
               data-testid="upgrade-btn"
-              onClick={handleUpgrade}
+              onClick={() => handleUpgrade("starter")}
               className="w-full bg-black text-white text-sm px-4 py-2 rounded-xl hover:bg-gray-800 transition-colors font-medium"
             >
               $99/mo
