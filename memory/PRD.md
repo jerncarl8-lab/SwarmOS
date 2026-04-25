@@ -1,64 +1,70 @@
 # SwarmOS — AI SDR Automation Platform
 
 ## Problem Statement
-Full AI SaaS system for Sales Development Representative (SDR) automation. Manages leads, generates personalized cold emails using OpenAI, sends them via Resend, reads replies from inbox, classifies sentiments using AI, auto-books meetings, and optimizes campaign metrics.
+Full AI SaaS system for SDR automation. Manages leads, generates personalized cold emails using OpenAI, books meetings automatically, classifies reply sentiments, and optimizes campaigns. Stripe for payments.
 
 ## Architecture
-- **Backend**: FastAPI (Python) on port 8001 with MongoDB
-- **Frontend**: React CRA on port 3000 with Tailwind CSS
-- **Database**: MongoDB (collections: users, leads, outreach, meetings, campaigns, insights, onboarding, payment_transactions)
+- **Backend**: FastAPI (Python) on port 8001 + MongoDB
+- **Frontend**: React CRA on port 3000 + Tailwind CSS
 - **AI**: OpenAI GPT-4o via Emergent LLM key
-- **Payments**: Stripe via emergentintegrations
-- **Preview URL**: https://lead-automation-27.preview.emergentagent.com
+- **Payments**: Stripe via emergentintegrations ($99/mo Pro plan)
+- **Design**: Swiss high-contrast (black/white), Outfit + IBM Plex Sans
 
-## What's Been Implemented
+## Implemented Features
 
-### Phase 1 — Core Backend (2026-04-15)
-- [x] FastAPI backend with MongoDB
-- [x] All CRUD endpoints: leads, outreach, inbox, meetings, automation, optimizer
-- [x] Login endpoint (email-only, returns {email, orgId, plan})
-- [x] Stats endpoint
-- [x] Seed data on startup (demo user, 5 leads, 1 campaign)
+### Landing Page (/)
+- Fixed navbar with SwarmOS logo, Login, Start Free Trial CTA
+- Hero: headline, subtitle, dual CTAs (Start Free Trial + Book Demo)
+- Social proof stats (2,400+ meetings, 98% deliverability, 3.2x replies)
+- Feature bento grid (4 cards: ICP, AI emails, Automation, Meetings)
+- Pricing section (Free $0 + Pro $99/mo)
+- Footer
 
-### Phase 2 — Stripe Integration (2026-04-15)
-- [x] POST /api/subscribe — Stripe checkout ($99/mo, "AI SDR SaaS")
-- [x] GET /api/checkout/status/{session_id} — payment status polling
-- [x] POST /api/webhook/stripe — webhook handler
-- [x] payment_transactions collection
+### Onboarding (/app) — 5-step wizard
+- Progress bar + step labels with icons
+- Step 1: Email → Step 2: Target → Step 3: Offer → Step 4: Volume
+- Step 5: AI Preview — live GPT-4o generated cold email based on target/offer
+- Regenerate button for new AI email
+- Launch → POST /api/login + POST /api/onboarding → redirect to dashboard
 
-### Phase 3 — OpenAI Integration (2026-04-15)
-- [x] POST /api/generate-email — AI-generated cold emails (GPT-4o)
-- [x] POST /api/classify-reply — AI sentiment classification
-- [x] Emergent LLM key configured
+### Dashboard (/dashboard)
+- Sidebar: 5 nav items (Dashboard, Outreach, Meetings, Analytics, Settings)
+- Active nav highlighting, Upgrade to Pro card ($99/mo → Stripe), Logout
+- Dashboard view: 4 KPI cards + Activity feed
+- Outreach view: outreach history list
+- Meetings view: booked meetings list
+- Analytics view: Reply Rate, Conversion, Contacted KPIs
+- Settings view: account info (email, orgId, plan)
 
-### Phase 4 — Full Design Overhaul (2026-04-15)
-- [x] Landing page: navbar, hero, social proof, feature cards, pricing (Free/$0 + Pro/$99), footer
-- [x] Onboarding: 4-step wizard with progress bar (Email → Target → Offer → Volume)
-- [x] Dashboard: sidebar nav (Dashboard, Outreach, Meetings, Analytics, Settings), KPI cards, activity feed
-- [x] Upgrade to Pro ($99/mo) → Stripe checkout
-- [x] Logout functionality
-- [x] Onboarding data saved to backend
-- [x] Outfit + IBM Plex Sans typography
-- [x] Swiss high-contrast design (black/white)
+### Backend API
+- POST /api/login, GET /api/stats, GET /api/dashboard
+- CRUD: /api/leads, /api/outreach, /api/meetings
+- POST /api/onboarding, GET /api/onboarding/{email}
+- POST /api/generate-email (AI), POST /api/classify-reply (AI)
+- POST /api/subscribe (Stripe $99/mo)
+- Automation start/stop/status, Optimizer, Insights, Health
+
+### Testing
+- 22/22 backend tests passing
+- All frontend flows verified (Landing, Onboarding, Dashboard)
 
 ## MOCKED
-- Resend email sending — not integrated (requires user API key + verified domain)
-- Gmail inbox reading — simulated
-- Calendly booking — simulated
+- Resend email sending (requires user API key + verified domain)
+- Gmail inbox reading (simulated)
 
 ## Backlog
 ### P1
-- Resend integration for actual email sending
-- Gmail API for inbox processing
+- Resend integration for real email sending
+- Gmail API for inbox reading
 - Calendly API for meeting booking
 
 ### P2
-- JWT auth with password hashing
-- Campaign management CRUD
-- Real-time activity feed with WebSockets
-- Analytics charts (Recharts)
+- JWT auth with passwords
+- Campaign management
+- Recharts analytics in dashboard
+- Plan upgrade webhook (after Stripe payment → update user.plan)
 
 ### P3
-- Multi-tenant (orgId-based data isolation)
-- Webhook for plan upgrades after Stripe payment
+- Multi-tenant data isolation (orgId)
 - Email scheduling & rate limiting
+- WebSocket real-time activity feed
