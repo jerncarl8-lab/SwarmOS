@@ -1,17 +1,27 @@
-from fastapi import FastAPI, APIRouter, Request
+from fastapi import FastAPI, APIRouter, Request, HTTPException, status
 from dotenv import load_dotenv
 from starlette.middleware.cors import CORSMiddleware
 from motor.motor_asyncio import AsyncIOMotorClient
 import os
 import logging
 from pathlib import Path
-from pydantic import BaseModel
+from pydantic import BaseModel, EmailStr, Field
 from typing import Optional
 from datetime import datetime, timezone
-from emergentintegrations.payments.stripe.checkout import StripeCheckout, CheckoutSessionRequest
-from emergentintegrations.llm.chat import LlmChat, UserMessage
 import resend
 import asyncio
+import bcrypt
+
+try:
+    from emergentintegrations.payments.stripe.checkout import StripeCheckout, CheckoutSessionRequest
+    from emergentintegrations.llm.chat import LlmChat, UserMessage
+    HAS_EMERGENT_INTEGRATIONS = True
+except ImportError:
+    StripeCheckout = None
+    CheckoutSessionRequest = None
+    LlmChat = None
+    UserMessage = None
+    HAS_EMERGENT_INTEGRATIONS = False
 
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / '.env')
@@ -32,6 +42,15 @@ class UserOut(BaseModel):
     email: str
     orgId: str
     plan: str
+
+class SignUpRequest(BaseModel):
+    email: EmailStr
+    password: str = Field(min_length=8, max_length=128)
+    plan: str = "free"
+
+class SignInRequest(BaseModel):
+    email: EmailStr
+    password: str = Field(min_length=8, max_length=128)
 
 class LeadCreate(BaseModel):
     email: str
@@ -79,6 +98,15 @@ class GenerateEmailRequest(BaseModel):
     offer: Optional[str] = None
 
 # ---------- Seed data ----------
+def hash_password(password: str) -> str:
+    return bcrypt.hashpw(password.encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
+
+def verify_password(password: str, password_hash: str) -> bool:
+    try:
+        return bcrypt.checkpw(password.encode("utf-8"), password_hash.encode("utf-8"))
+    except Exception:
+        return False
+
 async def seed_database():
     users_count = await db.users.count_documents({})
     if users_count == 0:
@@ -110,13 +138,53 @@ async def seed_database():
         })
         logging.info("Seeded campaigns")
 
+async def ensure_indexes():
+    await db.users.create_index("email", unique=True)
+
 # ---------- Auth ----------
+@api_router.post("/signup")
+async def signup(req: SignUpRequest):
+    existing = await db.users.find_one({"email": req.email.lower()}, {"_id": 0})
+    if existing:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="User already exists"
+        )
+
+    user = {
+        "email": req.email.lower(),
+        "passwordHash": hash_password(req.password),
+        "orgId": "org_" + str(int(datetime.now(timezone.utc).timestamp())),
+        "plan": req.plan,
+        "createdAt": datetime.now(timezone.utc).isoformat()
+    }
+    await db.users.insert_one(user)
+    return {"email": user["email"], "orgId": user["orgId"], "plan": user["plan"]}
+
+@api_router.post("/signin")
+async def signin(req: SignInRequest):
+    user = await db.users.find_one({"email": req.email.lower()})
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid credentials"
+        )
+
+    password_hash = user.get("passwordHash")
+    if not password_hash or not verify_password(req.password, password_hash):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid credentials"
+        )
+
+    return {"email": user["email"], "orgId": user["orgId"], "plan": user.get("plan", "free")}
+
 @api_router.post("/login")
 async def login(req: LoginRequest):
-    user = await db.users.find_one({"email": req.email}, {"_id": 0})
+    user = await db.users.find_one({"email": req.email.lower()}, {"_id": 0})
     if not user:
         user = {
-            "email": req.email,
+            "email": req.email.lower(),
             "orgId": "org_" + str(int(datetime.now(timezone.utc).timestamp())),
             "plan": "free"
         }
@@ -390,6 +458,9 @@ async def get_onboarding(email: str):
 # ---------- AI Email Generation ----------
 @api_router.post("/generate-email")
 async def generate_email(req: GenerateEmailRequest):
+    if not HAS_EMERGENT_INTEGRATIONS:
+        return {"success": False, "error": "AI integrations not available in this local environment"}
+
     llm_key = os.environ.get("EMERGENT_LLM_KEY")
     chat = LlmChat(
         api_key=llm_key,
@@ -416,6 +487,9 @@ async def generate_email(req: GenerateEmailRequest):
 # ---------- AI Sentiment Classification ----------
 @api_router.post("/classify-reply")
 async def classify_reply(req: InboxProcessRequest):
+    if not HAS_EMERGENT_INTEGRATIONS:
+        return {"success": True, "sentiment": "needs_followup"}
+
     llm_key = os.environ.get("EMERGENT_LLM_KEY")
     chat = LlmChat(
         api_key=llm_key,
@@ -445,6 +519,9 @@ async def classify_reply(req: InboxProcessRequest):
 # ---------- Stripe Checkout ----------
 @api_router.post("/subscribe")
 async def subscribe(req: SubscribeRequest, http_request: Request):
+    if not HAS_EMERGENT_INTEGRATIONS:
+        return {"error": "Stripe integrations not available in this local environment"}
+
     plan = PLANS.get(req.plan, PLANS["starter"])
     stripe_api_key = os.environ.get("STRIPE_API_KEY")
     host_url = str(http_request.base_url).rstrip("/")
@@ -479,6 +556,9 @@ async def subscribe(req: SubscribeRequest, http_request: Request):
 
 @api_router.get("/checkout/status/{session_id}")
 async def checkout_status(session_id: str, http_request: Request):
+    if not HAS_EMERGENT_INTEGRATIONS:
+        return {"status": "unavailable", "payment_status": "unavailable", "amount_total": 0, "currency": "usd"}
+
     stripe_api_key = os.environ.get("STRIPE_API_KEY")
     host_url = str(http_request.base_url).rstrip("/")
     webhook_url = f"{host_url}/api/webhook/stripe"
@@ -502,6 +582,9 @@ async def checkout_status(session_id: str, http_request: Request):
 
 @api_router.post("/webhook/stripe")
 async def stripe_webhook(request: Request):
+    if not HAS_EMERGENT_INTEGRATIONS:
+        return {"received": True}
+
     body = await request.body()
     sig = request.headers.get("Stripe-Signature", "")
     stripe_api_key = os.environ.get("STRIPE_API_KEY")
@@ -524,7 +607,12 @@ async def stripe_webhook(request: Request):
 # ---------- Health ----------
 @api_router.get("/health")
 async def health():
-    return {"status": "healthy", "timestamp": datetime.now(timezone.utc).isoformat(), "automation": automation_running}
+    return {
+        "status": "healthy",
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "automation": automation_running,
+        "dbAvailable": db_available
+    }
 
 # ---------- App setup ----------
 app.include_router(api_router)
@@ -542,10 +630,18 @@ logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
 )
 logger = logging.getLogger(__name__)
+db_available = True
 
 @app.on_event("startup")
 async def startup():
-    await seed_database()
+    global db_available
+    try:
+        await client.admin.command("ping")
+        await ensure_indexes()
+        await seed_database()
+    except Exception as e:
+        db_available = False
+        logger.warning(f"MongoDB unavailable; API will run in limited mode: {e}")
     logger.info("SwarmOS API started")
 
 @app.on_event("shutdown")

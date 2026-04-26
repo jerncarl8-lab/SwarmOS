@@ -1,14 +1,16 @@
-# AI Growth OS (Monorepo)
+# SwarmOS Monorepo
 
-Enterprise AI SDR + Voice + Ads + Swarm + Dashboard system.
+This repository contains frontend and backend applications for SwarmOS.
 
-## Stack
-- Node.js (API)
-- Next.js (Web Dashboard)
-- Redis (Queue + Memory)
-- BullMQ (Swarm workers)
-- Socket.io (Realtime)
-- Playwright (Safe browser agents)
+## Project docs
 
-## Run
-docker-compose up
+Only these README files are maintained:
+
+1. `README.md` (root)
+2. `frontend/README.md`
+3. `backend/README.md`
+
+## Quick start
+
+- Frontend setup and Vercel deployment: see `frontend/README.md`
+- Backend setup, MongoDB configuration, and deployment: see `backend/README.md`
