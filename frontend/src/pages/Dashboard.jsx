@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import axios from "axios";
-import { Home, BarChart3, Mail, Calendar, Settings, LogOut, Zap, ArrowUpRight } from "lucide-react";
+import { Home, BarChart3, Mail, Calendar, Settings, LogOut, Zap, ArrowUpRight, BookOpen, Phone, Target, MessageSquare, Clock, DollarSign, Users, ChevronDown, ChevronUp, TrendingUp, Check } from "lucide-react";
 
 const API = process.env.REACT_APP_BACKEND_URL;
 
@@ -49,6 +49,7 @@ export default function Dashboard() {
     { id: "dashboard", label: "Dashboard", icon: Home },
     { id: "outreach", label: "Outreach", icon: Mail },
     { id: "meetings", label: "Meetings", icon: Calendar },
+    { id: "playbook", label: "Playbook", icon: BookOpen },
     { id: "analytics", label: "Analytics", icon: BarChart3 },
     { id: "settings", label: "Settings", icon: Settings },
   ];
@@ -129,6 +130,7 @@ export default function Dashboard() {
         {currentView === "dashboard" && <DashboardView stats={stats} />}
         {currentView === "outreach" && <OutreachView />}
         {currentView === "meetings" && <MeetingsView />}
+        {currentView === "playbook" && <PlaybookView />}
         {currentView === "analytics" && <AnalyticsView stats={stats} />}
         {currentView === "settings" && <SettingsView user={user} />}
       </main>
@@ -269,7 +271,7 @@ function OutreachView() {
             {uncontacted.slice(0, 5).map((lead, idx) => (
               <div key={`${lead.id}-${idx}`} className="flex justify-between items-center py-2 border-b border-gray-100 last:border-0">
                 <div>
-                  <p className="text-sm font-medium">{lead.firstName} — {lead.company}</p>
+                  <p className="text-sm font-medium">{lead.firstName} - {lead.company}</p>
                   <p className="text-xs text-gray-500">{lead.email}</p>
                 </div>
                 <button
@@ -326,7 +328,7 @@ function MeetingsView() {
     <div className="bg-white border border-gray-200 rounded-xl p-6">
       <h3 className="text-lg font-medium tracking-tight mb-4">Booked Meetings</h3>
       {meetings.length === 0 ? (
-        <p className="text-sm text-gray-500">No meetings booked yet. They'll appear here once leads respond.</p>
+        <p className="text-sm text-gray-500">No meetings booked yet. They will appear here once leads respond.</p>
       ) : (
         <div className="space-y-3">
           {meetings.map((m) => (
@@ -377,3 +379,208 @@ function SettingsView({ user }) {
     </div>
   );
 }
+
+
+function PlaybookView() {
+  const [openSection, setOpenSection] = useState("script");
+  const toggle = (id) => setOpenSection(openSection === id ? null : id);
+
+  return (
+    <div className="space-y-6">
+      {/* Daily Schedule */}
+      <div className="bg-white border border-gray-200 rounded-xl p-6">
+        <div className="flex items-center gap-3 mb-6">
+          <div className="w-10 h-10 bg-black rounded-xl flex items-center justify-center"><Clock size={18} className="text-white" /></div>
+          <div>
+            <h3 className="text-lg font-medium tracking-tight">Daily Operating System</h3>
+            <p className="text-xs text-gray-500">Follow this every day</p>
+          </div>
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <ScheduleBlock time="Morning (1-2h)" color="bg-blue-50 border-blue-100" items={["Check dashboard & replies", "Confirm bookings", "Fix any issues"]} />
+          <ScheduleBlock time="Midday" color="bg-green-50 border-green-100" items={["Take calls", "Close deals", "Send follow-ups"]} />
+          <ScheduleBlock time="Evening" color="bg-purple-50 border-purple-100" items={["Review stats", "Improve messaging", "Add new leads"]} />
+        </div>
+      </div>
+
+      {/* KPI Targets */}
+      <div className="bg-white border border-gray-200 rounded-xl p-6">
+        <div className="flex items-center gap-3 mb-6">
+          <div className="w-10 h-10 bg-black rounded-xl flex items-center justify-center"><Target size={18} className="text-white" /></div>
+          <div>
+            <h3 className="text-lg font-medium tracking-tight">Daily KPI Targets</h3>
+            <p className="text-xs text-gray-500">Hit these numbers every day</p>
+          </div>
+        </div>
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          <TargetCard label="Messages Sent" target="200-1000" icon={<Mail size={16} />} />
+          <TargetCard label="Replies" target="10-50" icon={<MessageSquare size={16} />} />
+          <TargetCard label="Calls Booked" target="5-15" icon={<Phone size={16} />} />
+          <TargetCard label="Deals Closed" target="1-3" icon={<DollarSign size={16} />} />
+        </div>
+      </div>
+
+      {/* Call Script */}
+      <PlaybookSection
+        id="script"
+        open={openSection === "script"}
+        toggle={() => toggle("script")}
+        icon={<Phone size={18} />}
+        title="Call Script"
+        subtitle="Word-for-word what to say on sales calls"
+      >
+        <div className="space-y-4">
+          <ScriptStep num="1" title="Opening" color="bg-green-50">
+            <p>"Hey, thanks for taking the call - I will keep this super simple. I just want to understand how you are currently getting customers, and if it makes sense I will show you how we can help. Sound fair?"</p>
+          </ScriptStep>
+          <ScriptStep num="2" title="Discovery" color="bg-yellow-50">
+            <p>"How are you getting new customers today?"</p>
+            <p>"How many meetings are you getting per week?"</p>
+            <p>"Are you happy with that or do you want more?"</p>
+            <p>"What is the biggest bottleneck right now?"</p>
+          </ScriptStep>
+          <ScriptStep num="3" title="Problem" color="bg-red-50">
+            <p>"So basically, you want more consistent meetings, but [their problem]."</p>
+          </ScriptStep>
+          <ScriptStep num="4" title="Offer" color="bg-purple-50">
+            <p>"Got it - so what we do is pretty simple. We handle the outbound for you and book meetings directly into your calendar."</p>
+            <p className="font-medium mt-2">"So instead of you chasing leads, the system brings them to you."</p>
+          </ScriptStep>
+          <ScriptStep num="5" title="Result" color="bg-blue-50">
+            <p>"Most clients use this to get an extra 5-20 meetings per month without hiring SDRs."</p>
+          </ScriptStep>
+          <ScriptStep num="6" title="Close" color="bg-green-50">
+            <p>"If we could do that for you, would that be valuable?"</p>
+            <p className="font-medium mt-2">"Do you want me to set this up for you?"</p>
+          </ScriptStep>
+        </div>
+      </PlaybookSection>
+
+      {/* Objection Handling */}
+      <PlaybookSection
+        id="objections"
+        open={openSection === "objections"}
+        toggle={() => toggle("objections")}
+        icon={<MessageSquare size={18} />}
+        title="Objection Handling"
+        subtitle="What to say when they push back"
+      >
+        <div className="space-y-3">
+          <ObjectionCard objection="Too expensive" response="Totally fair - but if this brings even 1-2 clients, it pays for itself, right?" />
+          <ObjectionCard objection="I need to think" response="Of course - what specifically do you want to think about?" />
+          <ObjectionCard objection="Does it work?" response="That is exactly why we start small and test - no long-term risk." />
+        </div>
+      </PlaybookSection>
+
+      {/* Scale Plan */}
+      <PlaybookSection
+        id="scale"
+        open={openSection === "scale"}
+        toggle={() => toggle("scale")}
+        icon={<TrendingUp size={18} />}
+        title="Scale Plan"
+        subtitle="How to grow from $0 to $50K+/month"
+      >
+        <div className="space-y-3">
+          <ScalePhase phase="1" revenue="$0-$5K" desc="You do everything. 200 msgs/day. Close 1-3 clients." />
+          <ScalePhase phase="2" revenue="$5K-$20K" desc="Improve scripts. Add follow-ups. Increase volume." />
+          <ScalePhase phase="3" revenue="$20K-$50K" desc="Hire a closer. Step back. Focus on growth." />
+          <ScalePhase phase="4" revenue="$50K+" desc="Fully systemized. Multiple channels. Predictable revenue." />
+        </div>
+      </PlaybookSection>
+
+      {/* The Math */}
+      <div className="bg-black text-white rounded-xl p-6">
+        <h3 className="text-lg font-medium tracking-tight mb-4">The Math</h3>
+        <div className="flex flex-wrap items-center gap-3 text-sm">
+          <span className="bg-white/10 px-3 py-1.5 rounded-lg">1000 messages</span>
+          <span className="text-gray-500">→</span>
+          <span className="bg-white/10 px-3 py-1.5 rounded-lg">100 replies</span>
+          <span className="text-gray-500">→</span>
+          <span className="bg-white/10 px-3 py-1.5 rounded-lg">20 calls</span>
+          <span className="text-gray-500">→</span>
+          <span className="bg-white/20 px-3 py-1.5 rounded-lg font-semibold">5 closed deals</span>
+        </div>
+        <p className="text-xs text-gray-400 mt-4">At $1,000/client = $5,000/month from one batch of outreach</p>
+      </div>
+    </div>
+  );
+}
+
+function ScheduleBlock({ time, color, items }) {
+  return (
+    <div className={`${color} border rounded-xl p-4`}>
+      <p className="text-sm font-medium mb-3">{time}</p>
+      <ul className="space-y-2">
+        {items.map((item, i) => (
+          <li key={i} className="flex items-center gap-2 text-xs text-gray-600">
+            <Check size={12} className="text-gray-400" />
+            {item}
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
+function TargetCard({ label, target, icon }) {
+  return (
+    <div className="bg-gray-50 border border-gray-200 rounded-xl p-4 text-center">
+      <div className="mx-auto mb-2 text-gray-500">{icon}</div>
+      <p className="text-lg font-semibold tracking-tight">{target}</p>
+      <p className="text-xs text-gray-500 mt-1">{label}</p>
+    </div>
+  );
+}
+
+function PlaybookSection({ id, open, toggle, icon, title, subtitle, children }) {
+  return (
+    <div data-testid={`playbook-${id}`} className="bg-white border border-gray-200 rounded-xl overflow-hidden">
+      <button onClick={toggle} className="w-full flex items-center justify-between p-6 text-left">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 bg-gray-100 rounded-xl flex items-center justify-center">{icon}</div>
+          <div>
+            <h3 className="text-base font-medium tracking-tight">{title}</h3>
+            <p className="text-xs text-gray-500">{subtitle}</p>
+          </div>
+        </div>
+        {open ? <ChevronUp size={16} className="text-gray-400" /> : <ChevronDown size={16} className="text-gray-400" />}
+      </button>
+      {open && <div className="px-6 pb-6">{children}</div>}
+    </div>
+  );
+}
+
+function ScriptStep({ num, title, color, children }) {
+  return (
+    <div className={`${color} rounded-xl p-4`}>
+      <p className="text-xs font-semibold text-gray-500 mb-1">Step {num}</p>
+      <p className="text-sm font-medium mb-2">{title}</p>
+      <div className="text-sm text-gray-700 italic space-y-1">{children}</div>
+    </div>
+  );
+}
+
+function ObjectionCard({ objection, response }) {
+  return (
+    <div className="bg-gray-50 rounded-xl p-4">
+      <p className="text-sm font-medium text-red-600 mb-1">{objection}</p>
+      <p className="text-sm text-gray-700 italic">{response}</p>
+    </div>
+  );
+}
+
+function ScalePhase({ phase, revenue, desc }) {
+  return (
+    <div className="flex items-center gap-4 bg-gray-50 rounded-xl p-4">
+      <div className="w-10 h-10 bg-black text-white rounded-full flex items-center justify-center text-sm font-semibold flex-shrink-0">{phase}</div>
+      <div>
+        <p className="text-sm font-medium">{revenue}</p>
+        <p className="text-xs text-gray-500">{desc}</p>
+      </div>
+    </div>
+  );
+}
+
+
+

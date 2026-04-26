@@ -10,6 +10,8 @@ from typing import Optional
 from datetime import datetime, timezone
 from emergentintegrations.payments.stripe.checkout import StripeCheckout, CheckoutSessionRequest
 from emergentintegrations.llm.chat import LlmChat, UserMessage
+import resend
+import asyncio
 
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / '.env')
@@ -242,7 +244,26 @@ async def send_outreach(req: OutreachSendRequest):
         {"$set": {"contacted": True, "status": "contacted", "contactedAt": datetime.now(timezone.utc).isoformat()}}
     )
 
-    return {"success": True, "data": outreach_doc}
+    # Send real email via Resend if key is configured
+    email_sent = False
+    resend_key = os.environ.get("RESEND_API_KEY")
+    if resend_key and resend_key != "re_your_api_key_here":
+        try:
+            resend.api_key = resend_key
+            sender = os.environ.get("SENDER_EMAIL", "onboarding@resend.dev")
+            params = {
+                "from": sender,
+                "to": [lead["email"]],
+                "subject": "Quick question",
+                "html": f"<p>{email_content.replace(chr(10), '<br>')}</p>"
+            }
+            await asyncio.to_thread(resend.Emails.send, params)
+            email_sent = True
+            logging.info(f"Email sent to {lead['email']} via Resend")
+        except Exception as e:
+            logging.error(f"Resend error: {e}")
+
+    return {"success": True, "data": outreach_doc, "email_sent": email_sent}
 
 # ---------- Inbox ----------
 @api_router.get("/inbox/replies")
