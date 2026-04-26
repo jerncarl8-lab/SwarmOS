@@ -198,15 +198,20 @@ export default function Landing() {
       <section id="demo" className="py-24 px-6">
         <div className="max-w-4xl mx-auto text-center">
           <p className="text-xs font-semibold uppercase tracking-[0.2em] text-gray-400 mb-4">See it in action</p>
-          <h2 className="text-3xl sm:text-4xl font-medium tracking-tight mb-4">Watch a live demo</h2>
+          <h2 className="text-3xl sm:text-4xl font-medium tracking-tight mb-4">Watch how SwarmOS books meetings for you</h2>
           <p className="text-gray-500 mb-10">See exactly how SwarmOS books meetings while you sleep</p>
-          <div data-testid="video-section" className="relative aspect-video bg-black rounded-2xl overflow-hidden group cursor-pointer shadow-2xl">
-            <div className="absolute inset-0 bg-gradient-to-br from-gray-900 to-black flex items-center justify-center">
+          <div data-testid="video-section" className="relative aspect-video rounded-2xl overflow-hidden group cursor-pointer shadow-2xl border border-gray-200">
+            <img
+              src="https://static.prod-images.emergentagent.com/jobs/597bc99a-56de-4230-9f62-64151ef4223c/images/55e473cf5eda62a15acdb08b433a7adafba79b4083b3d64a40b940c965419498.png"
+              alt="SwarmOS Dashboard Demo"
+              className="w-full h-full object-cover"
+            />
+            <div className="absolute inset-0 bg-black/30 flex items-center justify-center group-hover:bg-black/40 transition-colors">
               <div className="text-center">
-                <div className="w-20 h-20 bg-white/10 backdrop-blur rounded-full flex items-center justify-center mx-auto mb-4 group-hover:bg-white/20 transition-all group-hover:scale-110">
+                <div className="w-20 h-20 bg-white/20 backdrop-blur-sm rounded-full flex items-center justify-center mx-auto mb-3 group-hover:bg-white/30 transition-all group-hover:scale-110">
                   <Play size={32} className="text-white ml-1" />
                 </div>
-                <p className="text-white/60 text-sm">2 min — see real results</p>
+                <p className="text-white/80 text-sm font-medium">Watch 2 min demo</p>
               </div>
             </div>
           </div>
