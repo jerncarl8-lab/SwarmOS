@@ -266,8 +266,8 @@ function OutreachView() {
           <h3 className="text-lg font-medium tracking-tight mb-4">Send AI Outreach</h3>
           <p className="text-sm text-gray-500 mb-4">{uncontacted.length} leads waiting for outreach</p>
           <div className="space-y-2">
-            {uncontacted.slice(0, 5).map((lead) => (
-              <div key={lead.id} className="flex justify-between items-center py-2 border-b border-gray-100 last:border-0">
+            {uncontacted.slice(0, 5).map((lead, idx) => (
+              <div key={`${lead.id}-${idx}`} className="flex justify-between items-center py-2 border-b border-gray-100 last:border-0">
                 <div>
                   <p className="text-sm font-medium">{lead.firstName} — {lead.company}</p>
                   <p className="text-xs text-gray-500">{lead.email}</p>
