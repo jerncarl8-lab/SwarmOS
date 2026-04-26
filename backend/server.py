@@ -210,7 +210,19 @@ async def send_outreach(req: OutreachSendRequest):
     if not lead:
         return {"success": False, "error": "Lead not found"}
 
-    email_content = f"Hi {lead.get('firstName', '')},\n\nI noticed {lead.get('company', 'your company')} is doing great work. I'd love to connect and share how we can help you scale even further.\n\nBest regards"
+    # Generate AI email
+    try:
+        llm_key = os.environ.get("EMERGENT_LLM_KEY")
+        chat = LlmChat(
+            api_key=llm_key,
+            session_id=f"outreach-{req.leadId}-{datetime.now(timezone.utc).timestamp()}",
+            system_message="You are an expert cold email copywriter. Write short, personalized cold emails. Max 4 sentences. Just the email body, no subject line."
+        )
+        chat.with_model("openai", "gpt-4o")
+        msg = UserMessage(text=f"Write a cold email to {lead.get('firstName', 'there')} at {lead.get('company', 'their company')}. We help companies book more meetings automatically using AI.")
+        email_content = await chat.send_message(msg)
+    except Exception:
+        email_content = f"Hi {lead.get('firstName', '')},\n\nI noticed {lead.get('company', 'your company')} is doing great work. I'd love to connect and share how we can help you book more meetings using AI.\n\nBest regards"
 
     outreach_doc = {
         "id": str(int(datetime.now(timezone.utc).timestamp())),

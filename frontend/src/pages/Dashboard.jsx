@@ -147,6 +147,22 @@ function KPICard({ label, value, subtitle }) {
 }
 
 function DashboardView({ stats }) {
+  const [showAdd, setShowAdd] = useState(false);
+  const [newLead, setNewLead] = useState({ firstName: "", email: "", company: "" });
+  const [adding, setAdding] = useState(false);
+
+  const addLead = async () => {
+    if (!newLead.email || !newLead.company || !newLead.firstName) return;
+    setAdding(true);
+    try {
+      await axios.post(`${API}/api/leads`, newLead);
+      setNewLead({ firstName: "", email: "", company: "" });
+      setShowAdd(false);
+      window.location.reload();
+    } catch (err) { console.error(err); }
+    setAdding(false);
+  };
+
   return (
     <div className="space-y-6">
       <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
@@ -156,6 +172,56 @@ function DashboardView({ stats }) {
         <KPICard label="Total Leads" value={stats.leads} subtitle={`${stats.contacted} contacted`} />
       </div>
 
+      {/* Add Lead */}
+      <div className="bg-white border border-gray-200 rounded-xl p-6">
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="text-lg font-medium tracking-tight">Quick Actions</h3>
+        </div>
+        {!showAdd ? (
+          <button
+            data-testid="add-lead-btn"
+            onClick={() => setShowAdd(true)}
+            className="text-sm bg-black text-white px-4 py-2 rounded-xl hover:bg-gray-800 transition-colors font-medium"
+          >
+            + Add Lead
+          </button>
+        ) : (
+          <div className="flex flex-col sm:flex-row gap-3">
+            <input
+              data-testid="add-lead-name"
+              placeholder="First name"
+              value={newLead.firstName}
+              onChange={(e) => setNewLead({ ...newLead, firstName: e.target.value })}
+              className="border border-gray-300 rounded-xl px-3 py-2 text-sm flex-1 focus:outline-none focus:ring-2 focus:ring-black focus:border-transparent"
+            />
+            <input
+              data-testid="add-lead-email"
+              placeholder="Email"
+              value={newLead.email}
+              onChange={(e) => setNewLead({ ...newLead, email: e.target.value })}
+              className="border border-gray-300 rounded-xl px-3 py-2 text-sm flex-1 focus:outline-none focus:ring-2 focus:ring-black focus:border-transparent"
+            />
+            <input
+              data-testid="add-lead-company"
+              placeholder="Company"
+              value={newLead.company}
+              onChange={(e) => setNewLead({ ...newLead, company: e.target.value })}
+              className="border border-gray-300 rounded-xl px-3 py-2 text-sm flex-1 focus:outline-none focus:ring-2 focus:ring-black focus:border-transparent"
+            />
+            <button
+              data-testid="add-lead-submit"
+              onClick={addLead}
+              disabled={adding}
+              className="text-sm bg-black text-white px-4 py-2 rounded-xl hover:bg-gray-800 transition-colors disabled:opacity-40"
+            >
+              {adding ? "Adding..." : "Add"}
+            </button>
+            <button onClick={() => setShowAdd(false)} className="text-sm text-gray-500 hover:text-black px-2">Cancel</button>
+          </div>
+        )}
+      </div>
+
+      {/* Activity */}
       <div className="bg-white border border-gray-200 rounded-xl p-6">
         <div className="flex items-center justify-between mb-4">
           <h3 className="text-lg font-medium tracking-tight">Activity</h3>
@@ -171,30 +237,81 @@ function DashboardView({ stats }) {
 
 function OutreachView() {
   const [outreach, setOutreach] = useState([]);
-  useEffect(() => {
+  const [leads, setLeads] = useState([]);
+  const [sending, setSending] = useState(null);
+
+  const fetchData = () => {
     axios.get(`${API}/api/outreach`).then((res) => setOutreach(res.data.data || []));
-  }, []);
+    axios.get(`${API}/api/leads`).then((res) => setLeads(res.data.data || []));
+  };
+
+  useEffect(() => { fetchData(); }, []);
+
+  const sendToLead = async (leadId) => {
+    setSending(leadId);
+    try {
+      await axios.post(`${API}/api/outreach/send`, { leadId });
+      fetchData();
+    } catch (err) { console.error(err); }
+    setSending(null);
+  };
+
+  const uncontacted = leads.filter((l) => !l.contacted);
 
   return (
-    <div className="bg-white border border-gray-200 rounded-xl p-6">
-      <h3 className="text-lg font-medium tracking-tight mb-4">Outreach History</h3>
-      {outreach.length === 0 ? (
-        <p className="text-sm text-gray-500">No outreach sent yet. Your AI is warming up.</p>
-      ) : (
-        <div className="space-y-3">
-          {outreach.map((item) => (
-            <div key={item.id} className="flex justify-between items-center py-3 border-b border-gray-100 last:border-0">
-              <div>
-                <p className="text-sm font-medium">{item.company}</p>
-                <p className="text-xs text-gray-500">{item.email}</p>
+    <div className="space-y-6">
+      {/* Send to new leads */}
+      {uncontacted.length > 0 && (
+        <div className="bg-white border border-gray-200 rounded-xl p-6">
+          <h3 className="text-lg font-medium tracking-tight mb-4">Send AI Outreach</h3>
+          <p className="text-sm text-gray-500 mb-4">{uncontacted.length} leads waiting for outreach</p>
+          <div className="space-y-2">
+            {uncontacted.slice(0, 5).map((lead) => (
+              <div key={lead.id} className="flex justify-between items-center py-2 border-b border-gray-100 last:border-0">
+                <div>
+                  <p className="text-sm font-medium">{lead.firstName} — {lead.company}</p>
+                  <p className="text-xs text-gray-500">{lead.email}</p>
+                </div>
+                <button
+                  data-testid={`send-to-${lead.id}`}
+                  onClick={() => sendToLead(lead.id)}
+                  disabled={sending === lead.id}
+                  className="text-xs bg-black text-white px-3 py-1.5 rounded-lg hover:bg-gray-800 transition-colors disabled:opacity-40"
+                >
+                  {sending === lead.id ? "Generating..." : "Send AI Email"}
+                </button>
               </div>
-              <span className={`text-xs px-2 py-1 rounded-full ${item.replied ? "bg-green-50 text-green-700" : "bg-gray-100 text-gray-500"}`}>
-                {item.replied ? "Replied" : "Sent"}
-              </span>
-            </div>
-          ))}
+            ))}
+          </div>
         </div>
       )}
+
+      {/* Outreach history */}
+      <div className="bg-white border border-gray-200 rounded-xl p-6">
+        <h3 className="text-lg font-medium tracking-tight mb-4">Outreach History</h3>
+        {outreach.length === 0 ? (
+          <p className="text-sm text-gray-500">No outreach sent yet. Send your first AI email above.</p>
+        ) : (
+          <div className="space-y-3">
+            {outreach.map((item) => (
+              <div key={item.id} className="border-b border-gray-100 last:border-0 py-3">
+                <div className="flex justify-between items-center mb-2">
+                  <div>
+                    <p className="text-sm font-medium">{item.company}</p>
+                    <p className="text-xs text-gray-500">{item.email}</p>
+                  </div>
+                  <span className={`text-xs px-2 py-1 rounded-full ${item.replied ? "bg-green-50 text-green-700" : "bg-gray-100 text-gray-500"}`}>
+                    {item.replied ? `Replied (${item.sentiment})` : "Sent"}
+                  </span>
+                </div>
+                {item.content && (
+                  <p className="text-xs text-gray-400 mt-1 line-clamp-2">{item.content}</p>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
     </div>
   );
 }
