@@ -186,6 +186,16 @@ db = None
 app = FastAPI()
 api_router = APIRouter(prefix="/api")
 
+
+@app.get("/")
+async def root():
+    return {
+        "service": "SwarmOS Backend API",
+        "status": "running",
+        "health": "/api/health",
+        "docs": "/docs"
+    }
+
 # ---------- Models ----------
 class LoginRequest(BaseModel):
     email: str
