@@ -1,73 +1,59 @@
 # Backend
 
-FastAPI backend for SwarmOS.
+FastAPI backend for SwarmOS, configured for Supabase Postgres.
 
 ## Installation
 
 From `backend`:
 
-1. Create virtual environment (recommended):
+1. Create virtual environment:
    - `python3 -m venv .venv`
    - `source .venv/bin/activate`
 2. Install dependencies:
    - `python3 -m pip install -r requirements.txt`
 
-If `requirements.txt` fails on private packages, install core runtime deps:
+## Database setup (Supabase)
 
-- `python3 -m pip install fastapi uvicorn motor pymongo python-dotenv resend`
+The backend reads database configuration from one URL:
 
-## Database setup (MongoDB)
+- `SUPABASE_DB_URL` (or `DATABASE_URL` fallback)
 
-Backend expects MongoDB and reads values from `backend/.env`.
+Example:
 
-Current required keys:
+- `postgresql://postgres:YOUR_PASSWORD@db.YOUR_PROJECT_REF.supabase.co:5432/postgres?sslmode=require`
 
-- `MONGO_URL` (example: `mongodb://localhost:27017`)
-- `DB_NAME` (example: `test_database`)
-- `CORS_ORIGINS` (example: `*`)
+How to get it from Supabase:
 
-### Run local MongoDB
+1. Open your Supabase project.
+2. Go to `Project Settings -> Database`.
+3. Copy the Postgres connection string.
+4. Put it in `backend/.env` as `SUPABASE_DB_URL`.
 
-Install and start MongoDB service on your machine so `MONGO_URL` is reachable.
-
-Quick connectivity check:
-
-- `python3 -c "from pymongo import MongoClient; print(MongoClient('mongodb://localhost:27017').admin.command('ping'))"`
+`CORS_ORIGINS` is also required for browser access.
 
 ## Run locally
 
 - Start API: `python3 -m uvicorn server:app --host 0.0.0.0 --port 8001`
 - Health endpoint: `http://localhost:8001/api/health`
 
-## Auth endpoints
+On startup, backend auto-creates required tables and indexes in Supabase.
 
-The backend now supports both schema-based auth and legacy login:
+## Auth endpoints
 
 - `POST /api/signup` with `{ "email": "...", "password": "min-8-chars", "plan": "free" }`
 - `POST /api/signin` with `{ "email": "...", "password": "min-8-chars" }`
-- `POST /api/login` with `{ "email": "..." }` (legacy fallback used by current frontend)
-
-## Tests
-
-Run from `backend`:
-
-- `python3 -m pytest -q`
-
-Test suite expects `BASE_URL` to be set, for example:
-
-- `BASE_URL=http://localhost:8001 python3 -m pytest -q`
+- `POST /api/login` with `{ "email": "..." }` (legacy fallback for existing frontend)
 
 ## Deployment
 
-Use any Python host that supports ASGI (Railway, Render, Fly.io, VPS, etc).
+Deploy on any Python ASGI host (Railway, Render, Fly.io, VPS).
 
-Recommended production command:
+Run command:
 
 - `uvicorn server:app --host 0.0.0.0 --port $PORT`
 
-Set environment variables in your platform:
+Set env vars:
 
-- `MONGO_URL`
-- `DB_NAME`
+- `SUPABASE_DB_URL`
 - `CORS_ORIGINS`
-- optional integration keys (`EMERGENT_LLM_KEY`, `STRIPE_API_KEY`, `RESEND_API_KEY`, `SENDER_EMAIL`)
+- optional integration keys: `EMERGENT_LLM_KEY`, `STRIPE_API_KEY`, `RESEND_API_KEY`, `SENDER_EMAIL`

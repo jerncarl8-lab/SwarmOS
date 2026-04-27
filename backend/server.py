@@ -1,7 +1,6 @@
 from fastapi import FastAPI, APIRouter, Request, HTTPException, status
 from dotenv import load_dotenv
 from starlette.middleware.cors import CORSMiddleware
-from motor.motor_asyncio import AsyncIOMotorClient
 import os
 import logging
 from pathlib import Path
@@ -11,6 +10,8 @@ from datetime import datetime, timezone
 import resend
 import asyncio
 import bcrypt
+import json
+import asyncpg
 
 try:
     from emergentintegrations.payments.stripe.checkout import StripeCheckout, CheckoutSessionRequest
@@ -26,10 +27,161 @@ except ImportError:
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / '.env')
 
-# MongoDB connection
-mongo_url = os.environ['MONGO_URL']
-client = AsyncIOMotorClient(mongo_url)
-db = client[os.environ['DB_NAME']]
+SUPABASE_DB_URL = os.environ.get("SUPABASE_DB_URL") or os.environ.get("DATABASE_URL")
+
+
+def _sql_literal_key(key: str) -> str:
+    return key.replace("'", "''")
+
+
+class PgCursor:
+    def __init__(self, collection, filter_query=None, projection=None):
+        self.collection = collection
+        self.filter_query = filter_query or {}
+        self.projection = projection
+        self.sort_field = None
+        self.sort_dir = 1
+        self.limit_count = None
+
+    def sort(self, field: str, direction: int):
+        self.sort_field = field
+        self.sort_dir = direction
+        return self
+
+    def limit(self, count: int):
+        self.limit_count = count
+        return self
+
+    async def to_list(self, limit: int):
+        if self.limit_count is None:
+            self.limit_count = limit
+        rows = await self.collection._select_docs(
+            self.filter_query, self.sort_field, self.sort_dir, self.limit_count
+        )
+        return rows
+
+
+class PgCollection:
+    def __init__(self, db, table_name: str):
+        self.db = db
+        self.table_name = table_name
+
+    def _where_sql(self, filter_query):
+        if not filter_query:
+            return "", []
+        clauses = []
+        params = []
+        idx = 1
+        for key, value in filter_query.items():
+            safe_key = _sql_literal_key(key)
+            if isinstance(value, bool):
+                clauses.append(f"COALESCE((doc->>'{safe_key}')::boolean, false) = ${idx}")
+                params.append(value)
+            elif isinstance(value, int) or isinstance(value, float):
+                clauses.append(f"COALESCE((doc->>'{safe_key}')::numeric, 0) = ${idx}")
+                params.append(value)
+            else:
+                clauses.append(f"doc->>'{safe_key}' = ${idx}")
+                params.append(str(value))
+            idx += 1
+        return " WHERE " + " AND ".join(clauses), params
+
+    async def count_documents(self, filter_query):
+        where_sql, params = self._where_sql(filter_query)
+        query = f"SELECT COUNT(*) AS count FROM {self.table_name}{where_sql}"
+        row = await self.db.pool.fetchrow(query, *params)
+        return row["count"] if row else 0
+
+    async def _select_docs(self, filter_query=None, sort_field=None, sort_dir=1, limit=None):
+        where_sql, params = self._where_sql(filter_query or {})
+        query = f"SELECT doc FROM {self.table_name}{where_sql}"
+        if sort_field:
+            safe_sort = _sql_literal_key(sort_field)
+            direction = "DESC" if sort_dir == -1 else "ASC"
+            query += f" ORDER BY doc->>'{safe_sort}' {direction}"
+        if limit is not None:
+            query += f" LIMIT {int(limit)}"
+        rows = await self.db.pool.fetch(query, *params)
+        return [dict(row["doc"]) for row in rows]
+
+    def find(self, filter_query=None, projection=None):
+        return PgCursor(self, filter_query, projection)
+
+    async def find_one(self, filter_query, projection=None, sort=None):
+        sort_field = None
+        sort_dir = 1
+        if sort and len(sort) > 0:
+            sort_field, sort_dir = sort[0]
+        rows = await self._select_docs(filter_query, sort_field, sort_dir, 1)
+        return rows[0] if rows else None
+
+    async def insert_one(self, doc):
+        payload = json.dumps(doc)
+        await self.db.pool.execute(
+            f"INSERT INTO {self.table_name} (doc) VALUES ($1::jsonb)",
+            payload
+        )
+
+    async def insert_many(self, docs):
+        if not docs:
+            return
+        async with self.db.pool.acquire() as conn:
+            async with conn.transaction():
+                for doc in docs:
+                    await conn.execute(
+                        f"INSERT INTO {self.table_name} (doc) VALUES ($1::jsonb)",
+                        json.dumps(doc)
+                    )
+
+    async def update_one(self, filter_query, update_query, upsert=False):
+        set_data = update_query.get("$set", {})
+        where_sql, params = self._where_sql(filter_query)
+        update_param_idx = len(params) + 1
+        query = (
+            f"WITH target AS ("
+            f"  SELECT ctid FROM {self.table_name}{where_sql} LIMIT 1"
+            f") "
+            f"UPDATE {self.table_name} t "
+            f"SET doc = COALESCE(t.doc, '{{}}'::jsonb) || ${update_param_idx}::jsonb "
+            f"FROM target "
+            f"WHERE t.ctid = target.ctid"
+        )
+        result = await self.db.pool.execute(query, *params, json.dumps(set_data))
+        if upsert and result.endswith("0"):
+            merged_doc = {**filter_query, **set_data}
+            await self.insert_one(merged_doc)
+
+    async def create_index(self, field: str, unique: bool = False):
+        safe_field = "".join(ch for ch in field if ch.isalnum() or ch == "_")
+        index_name = f"idx_{self.table_name}_{safe_field}"
+        unique_sql = "UNIQUE " if unique else ""
+        field_key = _sql_literal_key(field)
+        await self.db.pool.execute(
+            f"CREATE {unique_sql}INDEX IF NOT EXISTS {index_name} "
+            f"ON {self.table_name} ((doc->>'{field_key}'))"
+        )
+
+
+class PgDatabase:
+    def __init__(self, pool):
+        self.pool = pool
+        self.users = PgCollection(self, "users")
+        self.leads = PgCollection(self, "leads")
+        self.campaigns = PgCollection(self, "campaigns")
+        self.outreach = PgCollection(self, "outreach")
+        self.meetings = PgCollection(self, "meetings")
+        self.insights = PgCollection(self, "insights")
+        self.onboarding = PgCollection(self, "onboarding")
+        self.payment_transactions = PgCollection(self, "payment_transactions")
+
+    async def ping(self):
+        await self.pool.fetchval("SELECT 1")
+
+    async def close(self):
+        await self.pool.close()
+
+
+db = None
 
 app = FastAPI()
 api_router = APIRouter(prefix="/api")
@@ -140,6 +292,26 @@ async def seed_database():
 
 async def ensure_indexes():
     await db.users.create_index("email", unique=True)
+
+async def ensure_tables():
+    table_names = [
+        "users",
+        "leads",
+        "campaigns",
+        "outreach",
+        "meetings",
+        "insights",
+        "onboarding",
+        "payment_transactions"
+    ]
+    for table in table_names:
+        await db.pool.execute(
+            f"CREATE TABLE IF NOT EXISTS {table} ("
+            "pk BIGSERIAL PRIMARY KEY, "
+            "doc JSONB NOT NULL, "
+            "created_at TIMESTAMPTZ DEFAULT NOW()"
+            ")"
+        )
 
 # ---------- Auth ----------
 @api_router.post("/signup")
@@ -634,16 +806,22 @@ db_available = True
 
 @app.on_event("startup")
 async def startup():
-    global db_available
+    global db_available, db
     try:
-        await client.admin.command("ping")
+        if not SUPABASE_DB_URL:
+            raise RuntimeError("SUPABASE_DB_URL (or DATABASE_URL) is required")
+        pool = await asyncpg.create_pool(SUPABASE_DB_URL, min_size=1, max_size=5)
+        db = PgDatabase(pool)
+        await db.ping()
+        await ensure_tables()
         await ensure_indexes()
         await seed_database()
     except Exception as e:
         db_available = False
-        logger.warning(f"MongoDB unavailable; API will run in limited mode: {e}")
+        logger.warning(f"Database unavailable; API will run in limited mode: {e}")
     logger.info("SwarmOS API started")
 
 @app.on_event("shutdown")
 async def shutdown():
-    client.close()
+    if db:
+        await db.close()
