@@ -5,13 +5,14 @@ import os
 import logging
 from pathlib import Path
 from pydantic import BaseModel, EmailStr, Field
-from typing import Optional
-from datetime import datetime, timezone
+from typing import Optional, List, Dict, Any
+from datetime import datetime, timezone, timedelta
 import resend
 import asyncio
 import bcrypt
 import json
 import asyncpg
+import uuid
 
 try:
     from emergentintegrations.payments.stripe.checkout import StripeCheckout, CheckoutSessionRequest
@@ -173,6 +174,9 @@ class PgDatabase:
         self.insights = PgCollection(self, "insights")
         self.onboarding = PgCollection(self, "onboarding")
         self.payment_transactions = PgCollection(self, "payment_transactions")
+        self.providers = PgCollection(self, "providers")
+        self.jobs = PgCollection(self, "jobs")
+        self.match_runs = PgCollection(self, "match_runs")
 
     async def ping(self):
         await self.pool.fetchval("SELECT 1")
@@ -218,6 +222,13 @@ class LeadCreate(BaseModel):
     email: str
     company: str
     firstName: str
+    phone: Optional[str] = None
+    niche: Optional[str] = None
+    location: Optional[str] = None
+    serviceNeeded: Optional[str] = None
+    budget: Optional[str] = None
+    urgency: Optional[str] = None
+    source: Optional[str] = None
 
 class LeadUpdate(BaseModel):
     status: Optional[str] = None
@@ -234,6 +245,44 @@ class InboxProcessRequest(BaseModel):
 class MeetingCreate(BaseModel):
     leadId: str
     scheduledAt: Optional[str] = None
+
+
+class BulkLeadImportRequest(BaseModel):
+    leads: List[LeadCreate]
+
+
+class ProviderCreate(BaseModel):
+    name: str
+    email: EmailStr
+    services: List[str] = Field(default_factory=list)
+    location: Optional[str] = None
+    rating: float = 4.5
+    reviewCount: int = 0
+    active: bool = True
+    capacityPerWeek: int = 5
+
+
+class ProviderUpdate(BaseModel):
+    services: Optional[List[str]] = None
+    location: Optional[str] = None
+    rating: Optional[float] = None
+    reviewCount: Optional[int] = None
+    active: Optional[bool] = None
+    capacityPerWeek: Optional[int] = None
+
+
+class JobCreate(BaseModel):
+    customerName: str
+    customerEmail: EmailStr
+    description: str
+    category: Optional[str] = None
+    location: Optional[str] = None
+    budget: Optional[str] = None
+    timeline: Optional[str] = None
+
+
+class MatchJobRequest(BaseModel):
+    topK: int = 5
 
 # Plan pricing (server-side only)
 PLANS = {
@@ -300,8 +349,52 @@ async def seed_database():
         })
         logging.info("Seeded campaigns")
 
+    providers_count = await db.providers.count_documents({})
+    if providers_count == 0:
+        providers = [
+            {
+                "id": "prov_1",
+                "name": "Nordic Web Studio",
+                "email": "hello@nordicwebstudio.com",
+                "services": ["website", "web design", "seo"],
+                "location": "Stockholm",
+                "rating": 4.8,
+                "reviewCount": 42,
+                "active": True,
+                "capacityPerWeek": 6,
+                "createdAt": datetime.now(timezone.utc).isoformat()
+            },
+            {
+                "id": "prov_2",
+                "name": "CleanFlow Services",
+                "email": "ops@cleanflow.se",
+                "services": ["cleaning", "deep cleaning", "office cleaning"],
+                "location": "Stockholm",
+                "rating": 4.6,
+                "reviewCount": 128,
+                "active": True,
+                "capacityPerWeek": 15,
+                "createdAt": datetime.now(timezone.utc).isoformat()
+            },
+            {
+                "id": "prov_3",
+                "name": "PipeHero",
+                "email": "bookings@pipehero.se",
+                "services": ["plumbing", "repair", "emergency plumbing"],
+                "location": "Gothenburg",
+                "rating": 4.7,
+                "reviewCount": 73,
+                "active": True,
+                "capacityPerWeek": 8,
+                "createdAt": datetime.now(timezone.utc).isoformat()
+            },
+        ]
+        await db.providers.insert_many(providers)
+        logging.info("Seeded providers")
+
 async def ensure_indexes():
     await db.users.create_index("email", unique=True)
+    await db.providers.create_index("email", unique=True)
 
 async def ensure_tables():
     table_names = [
@@ -312,7 +405,10 @@ async def ensure_tables():
         "meetings",
         "insights",
         "onboarding",
-        "payment_transactions"
+        "payment_transactions",
+        "providers",
+        "jobs",
+        "match_runs"
     ]
     for table in table_names:
         await db.pool.execute(
@@ -322,6 +418,75 @@ async def ensure_tables():
             "created_at TIMESTAMPTZ DEFAULT NOW()"
             ")"
         )
+
+
+def _now_iso() -> str:
+    return datetime.now(timezone.utc).isoformat()
+
+
+def _build_booking_link(lead_email: str) -> str:
+    base = os.environ.get("BOOKING_LINK_BASE", "https://calendly.com/demo/15min")
+    separator = "&" if "?" in base else "?"
+    return f"{base}{separator}email={lead_email}"
+
+
+def _normalized(text: Optional[str]) -> str:
+    return (text or "").strip().lower()
+
+
+def _provider_score_for_job(provider: Dict[str, Any], job: Dict[str, Any]) -> Dict[str, Any]:
+    score = 0.0
+    reasons: List[str] = []
+    category = _normalized(job.get("category"))
+    job_location = _normalized(job.get("location"))
+    services = [_normalized(s) for s in provider.get("services", [])]
+
+    if category and any(category in service or service in category for service in services):
+        score += 55
+        reasons.append("service-match")
+
+    provider_location = _normalized(provider.get("location"))
+    if provider_location and job_location and provider_location == job_location:
+        score += 20
+        reasons.append("location-match")
+
+    rating = float(provider.get("rating", 0) or 0)
+    review_count = int(provider.get("reviewCount", 0) or 0)
+    score += min(rating * 4, 20)
+    score += min(review_count / 20, 10)
+
+    if not provider.get("active", True):
+        score -= 40
+        reasons.append("provider-inactive")
+
+    capacity = int(provider.get("capacityPerWeek", 0) or 0)
+    if capacity <= 0:
+        score -= 20
+        reasons.append("no-capacity")
+    else:
+        score += min(capacity, 10)
+
+    return {
+        "providerId": provider.get("id"),
+        "providerName": provider.get("name"),
+        "score": round(score, 2),
+        "reasons": reasons
+    }
+
+
+def _guess_category_from_description(description: str) -> str:
+    d = _normalized(description)
+    category_map = {
+        "website": ["website", "web", "landing page", "ecommerce", "shopify"],
+        "cleaning": ["clean", "städ", "office clean", "house clean"],
+        "plumbing": ["plumb", "pipe", "leak"],
+        "electrical": ["electric", "wiring", "power"],
+        "automation": ["automation", "ai", "agent", "workflow"],
+    }
+    for category, keywords in category_map.items():
+        if any(k in d for k in keywords):
+            return category
+    return "general"
 
 # ---------- Auth ----------
 @api_router.post("/signup")
@@ -430,13 +595,20 @@ async def get_leads():
 @api_router.post("/leads")
 async def add_lead(req: LeadCreate):
     lead = {
-        "id": str(int(datetime.now(timezone.utc).timestamp())),
+        "id": f"lead_{uuid.uuid4().hex[:10]}",
         "email": req.email,
         "company": req.company,
         "firstName": req.firstName,
+        "phone": req.phone,
+        "niche": req.niche,
+        "location": req.location,
+        "serviceNeeded": req.serviceNeeded,
+        "budget": req.budget,
+        "urgency": req.urgency,
+        "source": req.source or "manual",
         "status": "new",
         "contacted": False,
-        "createdAt": datetime.now(timezone.utc).isoformat()
+        "createdAt": _now_iso()
     }
     await db.leads.insert_one(lead)
     lead.pop("_id", None)
@@ -449,6 +621,120 @@ async def update_lead(lead_id: str, req: LeadUpdate):
         await db.leads.update_one({"id": lead_id}, {"$set": update_data})
     lead = await db.leads.find_one({"id": lead_id}, {"_id": 0})
     return {"success": True, "data": lead}
+
+
+@api_router.post("/leads/import")
+async def import_leads(req: BulkLeadImportRequest):
+    imported = []
+    for item in req.leads:
+        lead = {
+            "id": f"lead_{uuid.uuid4().hex[:10]}",
+            "email": item.email,
+            "company": item.company,
+            "firstName": item.firstName,
+            "phone": item.phone,
+            "niche": item.niche,
+            "location": item.location,
+            "serviceNeeded": item.serviceNeeded,
+            "budget": item.budget,
+            "urgency": item.urgency,
+            "source": item.source or "import",
+            "status": "new",
+            "contacted": False,
+            "createdAt": _now_iso()
+        }
+        imported.append(lead)
+    await db.leads.insert_many(imported)
+    for lead in imported:
+        lead.pop("_id", None)
+    return {"success": True, "imported": len(imported), "data": imported}
+
+
+# ---------- Providers + Marketplace ----------
+@api_router.get("/providers")
+async def get_providers():
+    providers = await db.providers.find({}, {"_id": 0}).to_list(1000)
+    return {"success": True, "data": providers}
+
+
+@api_router.post("/providers")
+async def add_provider(req: ProviderCreate):
+    provider = {
+        "id": f"prov_{uuid.uuid4().hex[:10]}",
+        "name": req.name,
+        "email": req.email.lower(),
+        "services": req.services,
+        "location": req.location,
+        "rating": req.rating,
+        "reviewCount": req.reviewCount,
+        "active": req.active,
+        "capacityPerWeek": req.capacityPerWeek,
+        "createdAt": _now_iso()
+    }
+    await db.providers.insert_one(provider)
+    provider.pop("_id", None)
+    return {"success": True, "data": provider}
+
+
+@api_router.patch("/providers/{provider_id}")
+async def update_provider(provider_id: str, req: ProviderUpdate):
+    update_data = {k: v for k, v in req.model_dump().items() if v is not None}
+    if update_data:
+        await db.providers.update_one({"id": provider_id}, {"$set": update_data})
+    provider = await db.providers.find_one({"id": provider_id}, {"_id": 0})
+    return {"success": True, "data": provider}
+
+
+@api_router.post("/jobs")
+async def create_job(req: JobCreate):
+    category = req.category or _guess_category_from_description(req.description)
+    job = {
+        "id": f"job_{uuid.uuid4().hex[:10]}",
+        "customerName": req.customerName,
+        "customerEmail": req.customerEmail.lower(),
+        "description": req.description,
+        "category": category,
+        "location": req.location,
+        "budget": req.budget,
+        "timeline": req.timeline,
+        "status": "new",
+        "createdAt": _now_iso()
+    }
+    await db.jobs.insert_one(job)
+    job.pop("_id", None)
+    return {"success": True, "data": job}
+
+
+@api_router.get("/jobs")
+async def get_jobs():
+    jobs = await db.jobs.find({}, {"_id": 0}).sort("createdAt", -1).limit(100).to_list(100)
+    return {"success": True, "data": jobs}
+
+
+@api_router.post("/jobs/{job_id}/match")
+async def match_job(job_id: str, req: MatchJobRequest):
+    job = await db.jobs.find_one({"id": job_id}, {"_id": 0})
+    if not job:
+        return {"success": False, "error": "Job not found"}
+
+    providers = await db.providers.find({}, {"_id": 0}).to_list(1000)
+    scored = [_provider_score_for_job(provider, job) for provider in providers]
+    scored.sort(key=lambda x: x["score"], reverse=True)
+    top_matches = scored[: max(1, req.topK)]
+
+    match_run = {
+        "id": f"match_{uuid.uuid4().hex[:10]}",
+        "jobId": job_id,
+        "matches": top_matches,
+        "createdAt": _now_iso()
+    }
+    await db.match_runs.insert_one(match_run)
+
+    await db.jobs.update_one(
+        {"id": job_id},
+        {"$set": {"status": "matched", "topProviderId": top_matches[0]["providerId"] if top_matches else None}}
+    )
+    return {"success": True, "data": {"job": job, "matches": top_matches}}
 
 # ---------- Outreach ----------
 @api_router.get("/outreach")
@@ -477,21 +763,24 @@ async def send_outreach(req: OutreachSendRequest):
         email_content = f"Hi {lead.get('firstName', '')},\n\nI noticed {lead.get('company', 'your company')} is doing great work. I'd love to connect and share how we can help you book more meetings using AI.\n\nBest regards"
 
     outreach_doc = {
-        "id": str(int(datetime.now(timezone.utc).timestamp())),
+        "id": f"out_{uuid.uuid4().hex[:10]}",
         "leadId": lead["id"],
         "email": lead["email"],
         "company": lead["company"],
         "content": email_content,
         "sent": True,
         "replied": False,
-        "sentAt": datetime.now(timezone.utc).isoformat()
+        "sentAt": _now_iso(),
+        "followupCount": 0,
+        "nextFollowupAt": (datetime.now(timezone.utc) + timedelta(hours=int(os.environ.get("FOLLOWUP_DELAY_HOURS", "48")))).isoformat(),
+        "bookingLink": _build_booking_link(lead["email"])
     }
     await db.outreach.insert_one(outreach_doc)
     outreach_doc.pop("_id", None)
 
     await db.leads.update_one(
         {"id": lead["id"]},
-        {"$set": {"contacted": True, "status": "contacted", "contactedAt": datetime.now(timezone.utc).isoformat()}}
+        {"$set": {"contacted": True, "status": "contacted", "contactedAt": _now_iso()}}
     )
 
     # Send real email via Resend if key is configured
@@ -528,14 +817,18 @@ async def process_inbox(req: InboxProcessRequest):
         return {"success": False, "error": "No matching outreach found"}
 
     sentiment = "interested"
+    next_followup = None
+    if sentiment == "needs_followup":
+        next_followup = (datetime.now(timezone.utc) + timedelta(hours=24)).isoformat()
 
     await db.outreach.update_one(
         {"email": req.fromEmail},
         {"$set": {
             "replied": True,
-            "repliedAt": datetime.now(timezone.utc).isoformat(),
+            "repliedAt": _now_iso(),
             "replyContent": req.content,
-            "sentiment": sentiment
+            "sentiment": sentiment,
+            "nextFollowupAt": next_followup
         }}
     )
 
@@ -556,11 +849,11 @@ async def get_meetings():
 @api_router.post("/meetings")
 async def create_meeting(req: MeetingCreate):
     meeting = {
-        "id": str(int(datetime.now(timezone.utc).timestamp())),
+        "id": f"meet_{uuid.uuid4().hex[:10]}",
         "leadId": req.leadId,
-        "scheduledAt": req.scheduledAt or datetime.now(timezone.utc).isoformat(),
+        "scheduledAt": req.scheduledAt or _now_iso(),
         "status": "scheduled",
-        "createdAt": datetime.now(timezone.utc).isoformat()
+        "createdAt": _now_iso()
     }
     await db.meetings.insert_one(meeting)
     meeting.pop("_id", None)
@@ -568,22 +861,141 @@ async def create_meeting(req: MeetingCreate):
 
 # ---------- Automation ----------
 automation_running = False
+automation_task: Optional[asyncio.Task] = None
+automation_last_run_at: Optional[str] = None
+automation_last_summary: Dict[str, int] = {"followupsSent": 0, "meetingsBooked": 0}
+
+
+async def _send_email_if_configured(to_email: str, subject: str, body: str) -> bool:
+    resend_key = os.environ.get("RESEND_API_KEY")
+    if not resend_key or resend_key == "re_your_api_key_here":
+        return False
+    try:
+        resend.api_key = resend_key
+        sender = os.environ.get("SENDER_EMAIL", "onboarding@resend.dev")
+        params = {
+            "from": sender,
+            "to": [to_email],
+            "subject": subject,
+            "html": f"<p>{body.replace(chr(10), '<br>')}</p>"
+        }
+        await asyncio.to_thread(resend.Emails.send, params)
+        return True
+    except Exception as e:
+        logging.error(f"Failed to send email to {to_email}: {e}")
+        return False
+
+
+async def run_automation_tick() -> Dict[str, int]:
+    now = datetime.now(timezone.utc)
+    followups_sent = 0
+    meetings_booked = 0
+    max_followups = int(os.environ.get("MAX_FOLLOWUPS", "3"))
+    followup_hours = int(os.environ.get("FOLLOWUP_DELAY_HOURS", "48"))
+
+    # 1) Auto-book meetings for interested replies.
+    replied_interested = await db.outreach.find({"replied": True, "sentiment": "interested"}, {"_id": 0}).to_list(1000)
+    for out in replied_interested:
+        if out.get("bookedMeeting"):
+            continue
+        meeting = {
+            "id": f"meet_{uuid.uuid4().hex[:10]}",
+            "leadId": out.get("leadId"),
+            "scheduledAt": _now_iso(),
+            "status": "scheduled",
+            "source": "automation",
+            "bookingLink": out.get("bookingLink") or _build_booking_link(out.get("email", "")),
+            "createdAt": _now_iso()
+        }
+        await db.meetings.insert_one(meeting)
+        await db.outreach.update_one({"id": out["id"]}, {"$set": {"bookedMeeting": True, "bookedAt": _now_iso()}})
+        if out.get("leadId"):
+            await db.leads.update_one({"id": out["leadId"]}, {"$set": {"status": "meeting_scheduled"}})
+        meetings_booked += 1
+
+    # 2) Send follow-ups for unreplied outreach when due.
+    pending_outreach = await db.outreach.find({"replied": False}, {"_id": 0}).to_list(1000)
+    for out in pending_outreach:
+        followup_count = int(out.get("followupCount", 0) or 0)
+        if followup_count >= max_followups:
+            continue
+        due_at_raw = out.get("nextFollowupAt")
+        if not due_at_raw:
+            continue
+        try:
+            due_at = datetime.fromisoformat(due_at_raw.replace("Z", "+00:00"))
+        except Exception:
+            continue
+        if due_at > now:
+            continue
+
+        body = (
+            f"Hi,\n\nJust following up on my previous message about helping {out.get('company', 'your team')} "
+            f"book more meetings automatically.\n\n"
+            f"If useful, here is a quick booking link: {out.get('bookingLink') or _build_booking_link(out.get('email', ''))}\n\n"
+            f"Best"
+        )
+        sent = await _send_email_if_configured(out.get("email", ""), "Quick follow-up", body)
+        await db.outreach.update_one(
+            {"id": out["id"]},
+            {"$set": {
+                "followupCount": followup_count + 1,
+                "lastFollowupAt": _now_iso(),
+                "nextFollowupAt": (now + timedelta(hours=followup_hours)).isoformat(),
+                "lastFollowupSent": sent
+            }}
+        )
+        followups_sent += 1
+
+    return {"followupsSent": followups_sent, "meetingsBooked": meetings_booked}
+
+
+async def automation_loop():
+    global automation_running, automation_last_run_at, automation_last_summary
+    interval_seconds = int(os.environ.get("AUTOMATION_INTERVAL_SECONDS", "60"))
+    while automation_running:
+        try:
+            summary = await run_automation_tick()
+            automation_last_summary = summary
+            automation_last_run_at = _now_iso()
+        except Exception as e:
+            logging.error(f"Automation loop error: {e}")
+        await asyncio.sleep(interval_seconds)
 
 @api_router.post("/automation/start")
 async def start_automation():
-    global automation_running
+    global automation_running, automation_task
+    if automation_running:
+        return {"success": True, "message": "Automation already running", "status": {"running": True}}
     automation_running = True
+    automation_task = asyncio.create_task(automation_loop())
     return {"success": True, "message": "Automation started", "status": {"running": True}}
 
 @api_router.post("/automation/stop")
 async def stop_automation():
-    global automation_running
+    global automation_running, automation_task
     automation_running = False
+    if automation_task and not automation_task.done():
+        automation_task.cancel()
+    automation_task = None
     return {"success": True, "message": "Automation stopped", "status": {"running": False}}
 
 @api_router.get("/automation/status")
 async def automation_status():
-    return {"success": True, "data": {"running": automation_running}}
+    return {
+        "success": True,
+        "data": {
+            "running": automation_running,
+            "lastRunAt": automation_last_run_at,
+            "lastSummary": automation_last_summary
+        }
+    }
+
+
+@api_router.post("/automation/run-once")
+async def automation_run_once():
+    summary = await run_automation_tick()
+    return {"success": True, "data": summary}
 
 # ---------- Optimizer ----------
 @api_router.post("/optimize")
@@ -689,9 +1101,12 @@ async def classify_reply(req: InboxProcessRequest):
 
     outreach = await db.outreach.find_one({"email": req.fromEmail}, {"_id": 0})
     if outreach:
+        next_followup = None
+        if sentiment == "needs_followup":
+            next_followup = (datetime.now(timezone.utc) + timedelta(hours=24)).isoformat()
         await db.outreach.update_one(
             {"email": req.fromEmail},
-            {"$set": {"replied": True, "repliedAt": datetime.now(timezone.utc).isoformat(), "replyContent": req.content, "sentiment": sentiment}}
+            {"$set": {"replied": True, "repliedAt": _now_iso(), "replyContent": req.content, "sentiment": sentiment, "nextFollowupAt": next_followup}}
         )
         if outreach.get("leadId"):
             await db.leads.update_one({"id": outreach["leadId"]}, {"$set": {"status": sentiment}})
