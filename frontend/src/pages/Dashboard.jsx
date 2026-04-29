@@ -9,12 +9,17 @@ export default function Dashboard() {
   const [user, setUser] = useState(null);
   const [stats, setStats] = useState(null);
   const [currentView, setCurrentView] = useState("dashboard");
+  const [onboardingData, setOnboardingData] = useState(null);
   const navigate = useNavigate();
 
   useEffect(() => {
     const stored = localStorage.getItem("user");
     if (!stored) { navigate("/app"); return; }
     setUser(JSON.parse(stored));
+    const onboardingStored = localStorage.getItem("onboarding");
+    if (onboardingStored) {
+      setOnboardingData(JSON.parse(onboardingStored));
+    }
     axios.get(`${API}/api/stats`).then((res) => setStats(res.data));
   }, [navigate]);
 
@@ -30,6 +35,7 @@ export default function Dashboard() {
         email: user.email,
         plan,
         origin_url: window.location.origin,
+        ref: onboardingData?.ref || undefined,
       });
       window.location.href = res.data.url;
     } catch (err) {
@@ -49,6 +55,8 @@ export default function Dashboard() {
     { id: "dashboard", label: "Dashboard", icon: Home },
     { id: "outreach", label: "Outreach", icon: Mail },
     { id: "meetings", label: "Meetings", icon: Calendar },
+    { id: "marketplace", label: "Marketplace", icon: Users },
+    { id: "automation", label: "Automation", icon: Zap },
     { id: "playbook", label: "Playbook", icon: BookOpen },
     { id: "analytics", label: "Analytics", icon: BarChart3 },
     { id: "settings", label: "Settings", icon: Settings },
@@ -130,6 +138,8 @@ export default function Dashboard() {
         {currentView === "dashboard" && <DashboardView stats={stats} />}
         {currentView === "outreach" && <OutreachView />}
         {currentView === "meetings" && <MeetingsView />}
+        {currentView === "marketplace" && <MarketplaceView />}
+        {currentView === "automation" && <AutomationView />}
         {currentView === "playbook" && <PlaybookView />}
         {currentView === "analytics" && <AnalyticsView stats={stats} />}
         {currentView === "settings" && <SettingsView user={user} />}
@@ -342,6 +352,203 @@ function MeetingsView() {
           ))}
         </div>
       )}
+    </div>
+  );
+}
+
+function AutomationView() {
+  const [status, setStatus] = useState(null);
+  const [runningAction, setRunningAction] = useState(null);
+
+  const loadStatus = () => {
+    axios.get(`${API}/api/automation/status`).then((res) => setStatus(res.data.data));
+  };
+
+  useEffect(() => { loadStatus(); }, []);
+
+  const trigger = async (endpoint, key) => {
+    setRunningAction(key);
+    try {
+      await axios.post(`${API}${endpoint}`);
+      loadStatus();
+    } catch (err) {
+      console.error(err);
+    }
+    setRunningAction(null);
+  };
+
+  return (
+    <div className="space-y-6">
+      <div className="bg-white border border-gray-200 rounded-xl p-6">
+        <h3 className="text-lg font-medium tracking-tight mb-2">Automation Control</h3>
+        <p className="text-sm text-gray-500 mb-4">Start background follow-ups + auto-meeting booking.</p>
+        <div className="flex gap-3">
+          <button onClick={() => trigger("/api/automation/start", "start")} disabled={runningAction === "start"} className="bg-black text-white text-sm px-4 py-2 rounded-xl hover:bg-gray-800 transition-colors disabled:opacity-40">
+            {runningAction === "start" ? "Starting..." : "Start"}
+          </button>
+          <button onClick={() => trigger("/api/automation/stop", "stop")} disabled={runningAction === "stop"} className="bg-gray-200 text-gray-800 text-sm px-4 py-2 rounded-xl hover:bg-gray-300 transition-colors disabled:opacity-40">
+            {runningAction === "stop" ? "Stopping..." : "Stop"}
+          </button>
+          <button onClick={() => trigger("/api/automation/run-once", "run")} disabled={runningAction === "run"} className="bg-blue-600 text-white text-sm px-4 py-2 rounded-xl hover:bg-blue-700 transition-colors disabled:opacity-40">
+            {runningAction === "run" ? "Running..." : "Run Once"}
+          </button>
+          <button onClick={loadStatus} className="bg-white border border-gray-300 text-sm px-4 py-2 rounded-xl hover:bg-gray-50 transition-colors">
+            Refresh
+          </button>
+        </div>
+      </div>
+
+      <div className="bg-white border border-gray-200 rounded-xl p-6">
+        <h4 className="text-base font-medium mb-3">Status</h4>
+        {!status ? (
+          <p className="text-sm text-gray-500">Loading status...</p>
+        ) : (
+          <div className="space-y-2 text-sm">
+            <p><span className="text-gray-500">Running:</span> <span className="font-medium">{status.running ? "Yes" : "No"}</span></p>
+            <p><span className="text-gray-500">Last Run:</span> <span className="font-medium">{status.lastRunAt || "Never"}</span></p>
+            <p><span className="text-gray-500">Follow-ups Sent:</span> <span className="font-medium">{status.lastSummary?.followupsSent ?? 0}</span></p>
+            <p><span className="text-gray-500">Meetings Booked:</span> <span className="font-medium">{status.lastSummary?.meetingsBooked ?? 0}</span></p>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function MarketplaceView() {
+  const [overview, setOverview] = useState(null);
+  const [providers, setProviders] = useState([]);
+  const [jobs, setJobs] = useState([]);
+  const [matches, setMatches] = useState([]);
+  const [providerForm, setProviderForm] = useState({ name: "", email: "", services: "", location: "" });
+  const [jobForm, setJobForm] = useState({ customerName: "", customerEmail: "", description: "", category: "", location: "" });
+  const [matchingJobId, setMatchingJobId] = useState(null);
+
+  const load = () => {
+    axios.get(`${API}/api/marketplace/overview`).then((res) => setOverview(res.data.data)).catch(() => {});
+    axios.get(`${API}/api/providers`).then((res) => setProviders(res.data.data || []));
+    axios.get(`${API}/api/jobs`).then((res) => setJobs(res.data.data || []));
+    axios.get(`${API}/api/match-runs`).then((res) => setMatches(res.data.data || []));
+  };
+
+  useEffect(() => { load(); }, []);
+
+  const addProvider = async () => {
+    if (!providerForm.name || !providerForm.email) return;
+    try {
+      await axios.post(`${API}/api/providers`, {
+        ...providerForm,
+        services: providerForm.services.split(",").map((s) => s.trim()).filter(Boolean),
+      });
+      setProviderForm({ name: "", email: "", services: "", location: "" });
+      load();
+    } catch (err) { console.error(err); }
+  };
+
+  const addJob = async () => {
+    if (!jobForm.customerName || !jobForm.customerEmail || !jobForm.description) return;
+    try {
+      await axios.post(`${API}/api/jobs`, jobForm);
+      setJobForm({ customerName: "", customerEmail: "", description: "", category: "", location: "" });
+      load();
+    } catch (err) { console.error(err); }
+  };
+
+  const matchJob = async (jobId) => {
+    setMatchingJobId(jobId);
+    try {
+      await axios.post(`${API}/api/jobs/${jobId}/match`, { topK: 5 });
+      load();
+    } catch (err) { console.error(err); }
+    setMatchingJobId(null);
+  };
+
+  return (
+    <div className="space-y-6">
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+        <KPICard label="Providers" value={overview?.providers ?? 0} />
+        <KPICard label="Active Providers" value={overview?.activeProviders ?? 0} />
+        <KPICard label="Jobs" value={overview?.jobs ?? 0} />
+        <KPICard label="Matched Jobs" value={overview?.matchedJobs ?? 0} />
+      </div>
+
+      <div className="bg-white border border-gray-200 rounded-xl p-6">
+        <h3 className="text-lg font-medium tracking-tight mb-4">Add Provider</h3>
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+          <input placeholder="Name" value={providerForm.name} onChange={(e) => setProviderForm({ ...providerForm, name: e.target.value })} className="border border-gray-300 rounded-xl px-3 py-2 text-sm" />
+          <input placeholder="Email" value={providerForm.email} onChange={(e) => setProviderForm({ ...providerForm, email: e.target.value })} className="border border-gray-300 rounded-xl px-3 py-2 text-sm" />
+          <input placeholder="Services (comma separated)" value={providerForm.services} onChange={(e) => setProviderForm({ ...providerForm, services: e.target.value })} className="border border-gray-300 rounded-xl px-3 py-2 text-sm" />
+          <input placeholder="Location" value={providerForm.location} onChange={(e) => setProviderForm({ ...providerForm, location: e.target.value })} className="border border-gray-300 rounded-xl px-3 py-2 text-sm" />
+        </div>
+        <button onClick={addProvider} className="mt-3 bg-black text-white text-sm px-4 py-2 rounded-xl hover:bg-gray-800">Save Provider</button>
+      </div>
+
+      <div className="bg-white border border-gray-200 rounded-xl p-6">
+        <h3 className="text-lg font-medium tracking-tight mb-4">Create Customer Job</h3>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+          <input placeholder="Customer Name" value={jobForm.customerName} onChange={(e) => setJobForm({ ...jobForm, customerName: e.target.value })} className="border border-gray-300 rounded-xl px-3 py-2 text-sm" />
+          <input placeholder="Customer Email" value={jobForm.customerEmail} onChange={(e) => setJobForm({ ...jobForm, customerEmail: e.target.value })} className="border border-gray-300 rounded-xl px-3 py-2 text-sm" />
+          <input placeholder="Category (optional)" value={jobForm.category} onChange={(e) => setJobForm({ ...jobForm, category: e.target.value })} className="border border-gray-300 rounded-xl px-3 py-2 text-sm" />
+          <input placeholder="Location (optional)" value={jobForm.location} onChange={(e) => setJobForm({ ...jobForm, location: e.target.value })} className="border border-gray-300 rounded-xl px-3 py-2 text-sm md:col-span-1" />
+          <input placeholder="Description" value={jobForm.description} onChange={(e) => setJobForm({ ...jobForm, description: e.target.value })} className="border border-gray-300 rounded-xl px-3 py-2 text-sm md:col-span-2" />
+        </div>
+        <button onClick={addJob} className="mt-3 bg-black text-white text-sm px-4 py-2 rounded-xl hover:bg-gray-800">Create Job</button>
+      </div>
+
+      <div className="bg-white border border-gray-200 rounded-xl p-6">
+        <h3 className="text-lg font-medium tracking-tight mb-4">Jobs & Matching</h3>
+        {jobs.length === 0 ? (
+          <p className="text-sm text-gray-500">No jobs yet.</p>
+        ) : (
+          <div className="space-y-3">
+            {jobs.map((job) => (
+              <div key={job.id} className="flex items-center justify-between border-b border-gray-100 pb-3">
+                <div>
+                  <p className="text-sm font-medium">{job.customerName} - {job.category || "general"}</p>
+                  <p className="text-xs text-gray-500">{job.description}</p>
+                </div>
+                <button onClick={() => matchJob(job.id)} disabled={matchingJobId === job.id} className="text-xs bg-blue-600 text-white px-3 py-1.5 rounded-lg hover:bg-blue-700 disabled:opacity-40">
+                  {matchingJobId === job.id ? "Matching..." : "Match Providers"}
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      <div className="bg-white border border-gray-200 rounded-xl p-6">
+        <h3 className="text-lg font-medium tracking-tight mb-4">Recent Match Runs</h3>
+        {matches.length === 0 ? (
+          <p className="text-sm text-gray-500">No matches yet.</p>
+        ) : (
+          <div className="space-y-3">
+            {matches.slice(0, 8).map((run) => (
+              <div key={run.id} className="border border-gray-100 rounded-lg p-3">
+                <p className="text-xs text-gray-500 mb-1">Job: {run.jobId}</p>
+                <p className="text-sm font-medium">
+                  Top match: {run.matches?.[0]?.providerName || "N/A"} ({run.matches?.[0]?.score ?? 0})
+                </p>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      <div className="bg-white border border-gray-200 rounded-xl p-6">
+        <h3 className="text-lg font-medium tracking-tight mb-4">Providers</h3>
+        {providers.length === 0 ? (
+          <p className="text-sm text-gray-500">No providers yet.</p>
+        ) : (
+          <div className="space-y-2">
+            {providers.map((p) => (
+              <div key={p.id} className="text-sm border-b border-gray-100 pb-2">
+                <span className="font-medium">{p.name}</span>
+                <span className="text-gray-500"> - {p.location || "N/A"} - {Array.isArray(p.services) ? p.services.join(", ") : ""}</span>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
     </div>
   );
 }

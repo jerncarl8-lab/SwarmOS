@@ -488,6 +488,18 @@ def _guess_category_from_description(description: str) -> str:
             return category
     return "general"
 
+
+def _classify_sentiment_fallback(content: str) -> str:
+    c = _normalized(content)
+    negative_markers = ["not interested", "no thanks", "stop", "unsubscribe", "remove me", "don't contact"]
+    positive_markers = ["interested", "yes", "sounds good", "let's talk", "book", "call", "demo", "meeting"]
+
+    if any(marker in c for marker in negative_markers):
+        return "not_interested"
+    if any(marker in c for marker in positive_markers):
+        return "interested"
+    return "needs_followup"
+
 # ---------- Auth ----------
 @api_router.post("/signup")
 async def signup(req: SignUpRequest):
@@ -736,6 +748,29 @@ async def match_job(job_id: str, req: MatchJobRequest):
     )
     return {"success": True, "data": {"job": job, "matches": top_matches}}
 
+
+@api_router.get("/match-runs")
+async def get_match_runs():
+    runs = await db.match_runs.find({}, {"_id": 0}).sort("createdAt", -1).limit(100).to_list(100)
+    return {"success": True, "data": runs}
+
+
+@api_router.get("/marketplace/overview")
+async def marketplace_overview():
+    providers = await db.providers.count_documents({})
+    active_providers = await db.providers.count_documents({"active": True})
+    jobs = await db.jobs.count_documents({})
+    matched_jobs = await db.jobs.count_documents({"status": "matched"})
+    return {
+        "success": True,
+        "data": {
+            "providers": providers,
+            "activeProviders": active_providers,
+            "jobs": jobs,
+            "matchedJobs": matched_jobs
+        }
+    }
+
 # ---------- Outreach ----------
 @api_router.get("/outreach")
 async def get_outreach():
@@ -816,7 +851,23 @@ async def process_inbox(req: InboxProcessRequest):
     if not outreach:
         return {"success": False, "error": "No matching outreach found"}
 
-    sentiment = "interested"
+    sentiment = _classify_sentiment_fallback(req.content)
+    if HAS_EMERGENT_INTEGRATIONS:
+        try:
+            llm_key = os.environ.get("EMERGENT_LLM_KEY")
+            chat = LlmChat(
+                api_key=llm_key,
+                session_id=f"inbox-process-{req.emailId}",
+                system_message="You classify email replies into exactly one category. Reply with ONLY one word: interested, not_interested, or needs_followup"
+            )
+            chat.with_model("openai", "gpt-4o")
+            msg = UserMessage(text=f"Classify this reply:\n\n{req.content}")
+            llm_sentiment = (await chat.send_message(msg)).strip().lower().replace(" ", "_")
+            if llm_sentiment in ["interested", "not_interested", "needs_followup"]:
+                sentiment = llm_sentiment
+        except Exception:
+            pass
+
     next_followup = None
     if sentiment == "needs_followup":
         next_followup = (datetime.now(timezone.utc) + timedelta(hours=24)).isoformat()

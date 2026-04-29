@@ -54,8 +54,9 @@ export default function Onboarding() {
       try {
         const res = await axios.post(`${API}/api/login`, { email: data.email });
         localStorage.setItem("user", JSON.stringify(res.data));
-        await axios.post(`${API}/api/onboarding`, data);
-        localStorage.setItem("onboarding", JSON.stringify(data));
+        const payload = { ...data, ref };
+        await axios.post(`${API}/api/onboarding`, payload);
+        localStorage.setItem("onboarding", JSON.stringify(payload));
         navigate("/dashboard");
       } catch (err) {
         console.error(err);
